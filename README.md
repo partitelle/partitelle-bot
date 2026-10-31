@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">PartitelleBot</h1>
 <p align="center">Telegram bot that organizes amateur football matches among friends: who is in, who is maybe, and the teams.</p>
-<p align="center"><a href="https://t.me/PartitelleBot"><img src="https://img.shields.io/badge/Telegram-PartitelleBot-blue.svg?logo=telegram" alt="PartitelleBot"></a></p>
+<p align="center"><a href="https://t.me/PartitelleBot"><img src="https://img.shields.io/badge/Telegram-PartitelleBot-blue.svg?logo=telegram" alt="PartitelleBot"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a></p>
 
 ## What it is
 
@@ -108,4 +108,6 @@ Nothing mandatory, just do it if you feel like offering a coffee: tap the Sponso
 
 ## License
 
-Released under the GNU General Public License v3.0, see [LICENSE](LICENSE).
+Released under the GNU Affero General Public License v3.0, see [LICENSE](LICENSE). Versions up to 1.6.2 were released under the GNU General Public License v3.0.
+
+The name "partitelle", the name "PartitelleBot" and the whistle mark are not covered by the license: see [TRADEMARKS.md](TRADEMARKS.md).

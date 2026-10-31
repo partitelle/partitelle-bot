@@ -61,6 +61,7 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 ### Then
 - `the bot should send:` + docstring: next call is a Markdown `send_message` with exactly this text.
 - `the bot should send the text "<name>"`: same, with a named text.
+- `the bot should send without a link preview:` + docstring: like `the bot should send:`, and the call must carry `link_preview_options` with the preview disabled.
 - `the bot should send the quoted text "<text>"`: same, one line, keeps leading/trailing spaces.
 - `the bot should send plain text:` / `the bot should send the plain text "<name>"`: next call is a `send_message` without parse mode.
 - `the bot should edit the summary to:` + docstring: next call edits the tracked summary message with exactly this Markdown text.

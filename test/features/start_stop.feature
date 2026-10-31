@@ -159,7 +159,7 @@ Feature: Starting and stopping a match
 
   Scenario: /help lists all the commands, even without a match
     When "@mario" sends "/help"
-    Then the bot should send:
+    Then the bot should send without a link preview:
       """
       Ecco a te la lista completa dei comandi di questo bot: 
       - se sei in forse scrivi _proponimi_, 
@@ -182,6 +182,8 @@ Feature: Starting and stopping a match
       /teams - Mostra le squadre della partita attuale 
       /stop - Rimuovi la partita 
       /help - Mostra la lista di comandi disponibili
+
+      Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot
       """
     And the bot should send nothing else
     And there should be no match for this chat

@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import LinkPreviewOptions, Update
 from telegram.ext import ContextTypes
 
 
@@ -24,9 +24,13 @@ async def help_func(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/participants - Mostra i partecipanti della partita attuale \n"
         "/teams - Mostra le squadre della partita attuale \n"
         "/stop - Rimuovi la partita \n"
-        "/help - Mostra la lista di comandi disponibili"
+        "/help - Mostra la lista di comandi disponibili\n\n"
+        "Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot"
     )
 
     await context.bot.send_message(
-        chat_id=update.effective_chat.id, parse_mode="markdown", text=answer
+        chat_id=update.effective_chat.id,
+        parse_mode="markdown",
+        text=answer,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
