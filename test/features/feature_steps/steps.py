@@ -227,6 +227,21 @@ def _bot_sends(world, docstring):
     _send_markdown(world, interpolate(world, docstring))
 
 
+@then("the bot should send without a link preview:")
+def _bot_sends_no_preview(world, docstring):
+    """Like `the bot should send:`, and the link preview must be disabled."""
+    call = _next_call_as(world, "send_message")
+    _assert_message(
+        call,
+        interpolate(world, docstring),
+        "markdown",
+        {"chat_id", "parse_mode", "text", "link_preview_options"},
+    )
+    assert call.params["link_preview_options"] == {"is_disabled": True}, (
+        f"Unexpected link preview options: {call.params['link_preview_options']}"
+    )
+
+
 @then(parsers.parse('the bot should send the text "{name}"'))
 def _bot_sends_named(world, name):
     """Same as `the bot should send:` with a text defined by `the text "<name>" is:`."""

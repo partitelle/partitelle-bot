@@ -1,4 +1,4 @@
-# Contributing
+# Contributing to partitelle-bot
 
 Hello everybody! 💪
 
@@ -14,7 +14,7 @@ See this [PR example](https://github.com/partitelle/partitelle-bot/pull/20)
 Best,
 Giovanni
 
-## Init the environment
+## Set up
 
 This project uses [uv](https://docs.astral.sh/uv/) to manage Python and dependencies. After [installing uv](https://docs.astral.sh/uv/getting-started/installation/), run:
 
@@ -40,7 +40,7 @@ uv run ruff check .    # lint
 Types are checked with [mypy](https://mypy.readthedocs.io/) (`uv run mypy`, also run by CI): `domain`, `db/connection.py` and `db/repository.py` are checked strictly, the rest of the code is not checked yet.
 To bring a module under checking, fully annotate it and add it to `files` and to the strict override in the `[tool.mypy]` section of `pyproject.toml`.
 
-Create a `.env` file and fill it with the correct values. You can use the `default.env` file as a template.
+Copy `default.env` to `.env` and set the values for your environment.
 
 ## Database migrations
 
@@ -65,29 +65,27 @@ On Render, the start command of both services must be:
 python -m db.migrate && python main.py
 ```
 
-## Run the tests
+## Tests
 
-To run the tests, run the following command:
+Run the test suite with:
 
 ```bash
 uv run pytest
 ```
 
-## Run the bot
+## Running the bot
 
-To run the bot, run the following command:
+Start the bot with:
 
 ```bash
 uv run python main.py
 ```
 
-If you're running the bot locally (ENV = local), the bot will start polling messages from Telegram.
+With `ENV=local` the bot polls Telegram for updates: the quickest way to try a change on your machine before you open a PR.
 
 If you're running the bot on other environments (ENV != local), the bot will start a webhook listener instead: it registers `$PB_URL/telegram` with Telegram at startup (`setWebhook`) and only accepts calls carrying the secret token, `PB_WEBHOOK_SECRET` if set (optional) or a value derived from the bot token otherwise. The bot token is never part of the URL.
 
 The bot uses the async API of python-telegram-bot (handlers are `async def` and await every bot call). The database layer is still synchronous (psycopg pool), which is fine for the current traffic.
-
-This is useful to test the bot on a local environment before pushing the changes to the remote server.
 
 ## Dependencies
 
@@ -123,3 +121,7 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 - Secrets: `RENDER_SERVICE_ID`, `RENDER_API_KEY`, `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
 - Secret `AUTOMERGE_TOKEN` (Dependabot secret, not an Actions one): fine-grained PAT limited to this repo with `Contents`, `Pull requests` and `Workflows` read and write (`Workflows` is needed to merge GitHub Actions bumps and push to their branches), no expiration, used by `dependabot-auto-merge.yml`. It is a PAT because merges made with `GITHUB_TOKEN` do not trigger the `push` workflow on `main`, so staging would not be deployed. The workflow also approves patch and minor Dependabot PRs with it, so the token owner must be a code owner (`.github/CODEOWNERS`) and those approvals show under their account.
 - Branch protection on `main` requires branches to be up to date, so when `main` moves a maintainer presses "Update branch" on an open Dependabot PR; the approval stays (stale reviews are not dismissed) and auto-merge completes once the checks pass again.
+
+## License
+
+The code is released under the GNU AGPL v3.0 (see [LICENSE](LICENSE)); versions up to 1.6.2 were released under the GNU GPL v3.0. By opening a pull request you agree that your contribution is released under the same license. The name and the marks are not part of the license: see [TRADEMARKS.md](TRADEMARKS.md).
