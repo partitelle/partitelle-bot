@@ -106,6 +106,10 @@ Use `docker compose down -v` to also drop the local data.
 
 Nothing mandatory, just do it if you feel like offering a coffee: tap the Sponsor button at the top, or click [here](https://paypal.me/GiovanniL891?country.x=IT&locale.x=it_IT).
 
+## Privacy
+
+How partitelle handles your data: [partitelle.com/privacy](https://partitelle.com/privacy).
+
 ## License
 
 Released under the GNU Affero General Public License v3.0, see [LICENSE](LICENSE). Versions up to 1.6.2 were released under the GNU General Public License v3.0.

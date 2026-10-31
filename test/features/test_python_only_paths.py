@@ -3,7 +3,21 @@ fake Telegram world. Plain pytest on purpose: the .feature files are the contrac
 
 from telegram.helpers import escape_markdown
 
-BAMBOO_GREETING = "Ciao bestie 😎, chi c'è per il prossimo calcetto? \n"
+PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
+PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
+BAMBOO_GREETING = (
+    "Ciao bestie 😎, chi c'è per il prossimo calcetto? \n"
+    "\n"
+    "- se sei in forse scrivi _proponimi_, \n"
+    "- se vuoi proporre qualcuno scrivi _proponi <nome>_, \n"
+    "- per essere aggiunto o confermato rispondi _aggiungimi_,\n"
+    "- per aggiungere o confermare qualcuno usa _aggiungi <nome>_,\n"
+    "- per essere rimosso _toglimi_, \n"
+    "- per rimuovere qualcuno _togli <nome>_, \n"
+    "- per modificare le squadre scrivi _scambia <nome 1> con <nome 2>_. \n\n"
+    "Posso anche pinnare i messaggi se vuoi ma per farlo ricordati di aggiungermi come amministratore.\n"
+    "\n" + PRIVACY_LINE
+)
 SPECIAL_CHARACTER_HELP = (
     "Sembra che tu abbia inserito nella descrizione un carattere speciale di telegram (`, *, _).\n"
     "Per favore cambiala con /setdescription <descrizione> assicurandoti di non inserire uno di questi caratteri.\n"
@@ -20,7 +34,8 @@ def test_bamboo_creates_the_match_with_the_bamboo_defaults_once(world):
     greeting = world.next_call()
     assert greeting.method == "send_message"
     assert greeting.params["parse_mode"] == "markdown"
-    assert greeting.params["text"].startswith(BAMBOO_GREETING)
+    assert greeting.params["text"] == BAMBOO_GREETING
+    assert greeting.params["link_preview_options"] == {"is_disabled": True}
     match = world.db.fetch_match(world.current_chat.id)
     assert match["pitch"].startswith("Crespi Sport Village")
     assert match["day"].startswith("Mercoledì ")

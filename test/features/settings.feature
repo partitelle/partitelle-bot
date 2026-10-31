@@ -52,6 +52,8 @@ Feature: Match settings
       - per modificare le squadre scrivi _scambia <nome 1> con <nome 2>_. 
 
       Posso anche pinnare i messaggi se vuoi ma per farlo ricordati di aggiungermi come amministratore.
+
+      Come usiamo i tuoi dati: https://partitelle.com/privacy
       """
     And the text "no match" is:
       """
@@ -1478,7 +1480,7 @@ Feature: Match settings
   Scenario Outline: /start on <now> picks <day>
     Given the clock moves to "<now>"
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field | value |
@@ -1495,7 +1497,7 @@ Feature: Match settings
   Scenario Outline: /start on a Wednesday at <time>, before the default match time, keeps the same day
     Given the clock moves to "2026-10-21 <time>"
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field | value                |
@@ -1510,7 +1512,7 @@ Feature: Match settings
   Scenario Outline: /start on a Wednesday at <time>, from the default match time on, skips to the following Wednesday
     Given the clock moves to "2026-10-21 <time>"
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field | value                |
