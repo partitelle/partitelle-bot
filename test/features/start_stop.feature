@@ -19,6 +19,8 @@ Feature: Starting and stopping a match
       - per modificare le squadre scrivi _scambia <nome 1> con <nome 2>_. 
 
       Posso anche pinnare i messaggi se vuoi ma per farlo ricordati di aggiungermi come amministratore.
+
+      Come usiamo i tuoi dati: https://partitelle.com/privacy
       """
     And the text "default description" is:
       """
@@ -31,7 +33,7 @@ Feature: Starting and stopping a match
 
   Scenario: /start on a chat without a match creates one with the defaults
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field   | value                |
@@ -49,7 +51,7 @@ Feature: Starting and stopping a match
   Scenario: /start from a user without username works the same
     Given a user named "Luca" without username
     When "Luca" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field   | value                |
@@ -85,7 +87,7 @@ Feature: Starting and stopping a match
       """
     And the bot should pin the last message
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     And the match should have:
       | field | value |
@@ -126,7 +128,7 @@ Feature: Starting and stopping a match
     Given a match was started
     And a group chat "Altra squadra"
     When "@mario" sends "/start" in "Altra squadra"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     When "@mario" sends "/stop" in "Altra squadra"
     Then the bot should send:
       """
@@ -152,7 +154,7 @@ Feature: Starting and stopping a match
       Ho cancellato la partita.
       """
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the match should have:
       | field | value                |
       | day   | Mercoledì 28/10/2026 |
@@ -184,6 +186,7 @@ Feature: Starting and stopping a match
       /help - Mostra la lista di comandi disponibili
 
       Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot
+      Come usiamo i tuoi dati: https://partitelle.com/privacy
       """
     And the bot should send nothing else
     And there should be no match for this chat
@@ -226,7 +229,7 @@ Feature: Starting and stopping a match
   Scenario: /start in a chat with a default pitch gives the match that pitch
     Given the chat has the default pitch "Campo Rossi"
     When "@mario" sends "/start"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     When "@mario" sends "/participants"
     Then the bot should send:
@@ -258,7 +261,7 @@ Feature: Starting and stopping a match
   Scenario: /bamboo in a chat with another default pitch keeps the bamboo pitch
     Given the chat has the default pitch "Campo Rossi"
     When "@mario" sends "/bamboo"
-    Then the bot should send the text "welcome"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
     When "@mario" sends "/participants"
     Then the bot should send:

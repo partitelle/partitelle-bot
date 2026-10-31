@@ -25,7 +25,8 @@ async def help_func(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/teams - Mostra le squadre della partita attuale \n"
         "/stop - Rimuovi la partita \n"
         "/help - Mostra la lista di comandi disponibili\n\n"
-        "Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot"
+        "Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot\n"
+        "Come usiamo i tuoi dati: https://partitelle.com/privacy"
     )
 
     await context.bot.send_message(

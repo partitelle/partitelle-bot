@@ -230,10 +230,20 @@ def _bot_sends(world, docstring):
 @then("the bot should send without a link preview:")
 def _bot_sends_no_preview(world, docstring):
     """Like `the bot should send:`, and the link preview must be disabled."""
+    _send_markdown_no_preview(world, interpolate(world, docstring))
+
+
+@then(parsers.parse('the bot should send the text "{name}" without a link preview'))
+def _bot_sends_named_no_preview(world, name):
+    """Same as `the bot should send without a link preview:` with a text defined by `the text "<name>" is:`."""
+    _send_markdown_no_preview(world, interpolate(world, "{" + name + "}"))
+
+
+def _send_markdown_no_preview(world, text):
     call = _next_call_as(world, "send_message")
     _assert_message(
         call,
-        interpolate(world, docstring),
+        text,
         "markdown",
         {"chat_id", "parse_mode", "text", "link_preview_options"},
     )
