@@ -5,6 +5,8 @@ import hmac
 import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import datetime, timezone
+from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -13,6 +15,7 @@ from starlette.routing import Route
 from telegram import Update
 from telegram.ext import Application
 
+from behaviours.send_due_reminders import send_due_reminders
 from db.connection import ping
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,12 @@ HEALTH_CORS_ORIGIN = "https://partitelle.com"
 HEALTH_TIMEOUT = 5  # seconds, for the whole database check
 
 DatabaseCheck = Callable[[], Awaitable[None]]
+ReminderSender = Callable[[Any, datetime], Awaitable[dict[str, int]]]
+Clock = Callable[[], datetime]
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def resolve_version(environ: Mapping[str, str] = os.environ) -> str:
@@ -46,8 +55,14 @@ def create_app(
     secret: str,
     check: DatabaseCheck = check_database,
     version: str | None = None,
+    jobs_secret: str | None = None,
+    send_reminders: ReminderSender = send_due_reminders,
+    now: Clock = utc_now,
 ) -> Starlette:
-    """Build the web app. `application` receives the updates, `secret` guards the webhook."""
+    """Build the web app. `application` receives the updates, `secret` guards the webhook.
+
+    `jobs_secret` guards the jobs endpoints; when unset or empty they are disabled (404).
+    """
 
     async def telegram(request: Request) -> Response:
         received = request.headers.get(SECRET_HEADER, "")
@@ -83,9 +98,29 @@ def create_app(
             headers["Vary"] = "Origin"
         return JSONResponse(body, status_code=status_code, headers=headers)
 
+    async def payment_reminders(request: Request) -> Response:
+        if not jobs_secret:
+            return Response(status_code=404)
+        scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+        if scheme != "Bearer" or not hmac.compare_digest(
+            token.encode(), jobs_secret.encode()
+        ):
+            return Response(status_code=401)
+        try:
+            counts = await send_reminders(application.bot, now())
+        except Exception as error:
+            # the body and the log never carry the error text: it could hold chat ids or names
+            logger.warning("Payment reminders job failed: %s", type(error).__name__)
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        return JSONResponse(
+            {key: counts[key] for key in ("sent", "skipped", "failed")},
+            headers={"Cache-Control": "no-store"},
+        )
+
     return Starlette(
         routes=[
             Route(f"/{WEBHOOK_PATH}", telegram, methods=["POST"]),
             Route("/health", health, methods=["GET"]),  # HEAD is added by Starlette
+            Route("/jobs/payment-reminders", payment_reminders, methods=["POST"]),
         ]
     )

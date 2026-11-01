@@ -17,3 +17,5 @@ if not db_schema:
     )
 # Optional secret for the Telegram webhook; when unset it is derived from the bot token (see main.py)
 webhook_secret = os.getenv("PB_WEBHOOK_SECRET")
+# Optional secret (bearer token) for the jobs endpoints of the web app; when unset or empty they are disabled
+jobs_secret = os.getenv("PB_JOBS_SECRET")
