@@ -306,7 +306,8 @@ def _bot_edits_summary(world, docstring):
 def _bot_pins_last(world):
     """Pins the message of the most recent `send_message` already asserted by the scenario."""
     sent_so_far = sum(
-        c.method == "send_message" for c in world.telegram.calls[: world.consumed]
+        c.method == "send_message" and not c.failed
+        for c in world.telegram.calls[: world.consumed]
     )
     assert sent_so_far, (
         "The scenario asserted no message sent by the bot before the pin."

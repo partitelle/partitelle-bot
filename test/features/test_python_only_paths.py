@@ -90,3 +90,57 @@ def test_the_db_layer_refuses_to_store_an_empty_or_command_name(world):
         with pytest.raises(ValueError):
             add_participant(world.current_chat.id, Participant(name))
     assert world.db.fetch_match(world.current_chat.id)["players"] is None
+
+
+def test_a_reminder_claimed_by_a_concurrent_run_is_skipped_and_left_to_it(
+    world, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    import behaviours.send_due_reminders as sender
+    from db.repository import claim_reminder, find_reminder_candidates
+    from domain.schedule import TIMEZONE
+
+    world.add_chat("Calcetto")
+    world.add_user("@giulia", "Giulia", "giulia")
+    world.send("@giulia", "/start")
+    world.forget_calls()
+    world.db.set_target(world.current_chat.id, 2)
+    world.db.set_players(world.current_chat.id, [("ana", False), ("bea", False)])
+    now = datetime(2026, 10, 21, 9, tzinfo=TIMEZONE)
+    world.db.set_starts(
+        world.current_chat.id, datetime(2026, 10, 20, 21, tzinfo=TIMEZONE)
+    )
+
+    def found_then_claimed_elsewhere(start, end):
+        candidates = find_reminder_candidates(start, end)
+        assert [claim_reminder(c.match_uuid) for c in candidates] == [True]
+        return candidates
+
+    monkeypatch.setattr(
+        sender, "find_reminder_candidates", found_then_claimed_elsewhere
+    )
+
+    counts = world.run(
+        sender.send_due_reminders(world.application.bot, now.astimezone(UTC))
+    )
+
+    assert counts == {"sent": 0, "skipped": 1, "failed": 0}
+    assert not world.unconsumed()
+    assert world.db.fetch_reminder(world.current_chat.id)[:2] == (True, None)
+
+
+def test_a_released_claim_can_be_taken_again_and_only_once(world):
+    from db.repository import claim_reminder, release_reminder
+
+    world.add_chat("Calcetto")
+    world.add_user("@giulia", "Giulia", "giulia")
+    world.send("@giulia", "/start")
+    with world.db.conn.cursor() as cur:
+        cur.execute("SELECT match_uuid FROM match")
+        match_uuid = str(cur.fetchone()[0])
+
+    assert [claim_reminder(match_uuid), claim_reminder(match_uuid)] == [True, False]
+    release_reminder(match_uuid)
+    assert world.db.fetch_reminder(world.current_chat.id)[0] is False
+    assert claim_reminder(match_uuid) is True

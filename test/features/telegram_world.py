@@ -31,6 +31,7 @@ def _snake(endpoint):
 class Call:
     method: str
     params: dict
+    failed: bool = False  # Telegram answered with an error (see `fail_next`)
 
     def __str__(self):
         return f"{self.method}({self.params})"
@@ -116,9 +117,11 @@ class FakeTelegram(BaseRequest):
 
         params = dict(request_data.parameters) if request_data else {}
         method = _snake(endpoint)
-        self.calls.append(Call(method, params))
+        call = Call(method, params)
+        self.calls.append(call)
 
         if self.failures.get(method):
+            call.failed = True
             return self._reply(
                 400,
                 {
