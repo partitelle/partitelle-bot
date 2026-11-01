@@ -4,6 +4,8 @@ from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
+PAYMENT_REMINDER_TEXT = "Ciao bestie 😎, com'è andata la partita? C'è qualcuno che non ha ancora pagato la sua quota?"
+
 
 async def payment_reminder(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
@@ -11,7 +13,7 @@ async def payment_reminder(context: ContextTypes.DEFAULT_TYPE):
 
     msg = await context.bot.send_message(
         chat_id,
-        text="Ciao bestie 😎, com'è andata la partita? C'è qualcuno che non ha ancora pagato la sua quota?",
+        text=PAYMENT_REMINDER_TEXT,
     )
 
     try:

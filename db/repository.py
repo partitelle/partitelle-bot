@@ -8,7 +8,7 @@ from uuid import UUID
 from psycopg import Connection, sql
 
 from db.connection import connection
-from domain import Match, Participant, Teams
+from domain import Match, Participant, ReminderCandidate, Teams
 from domain.schedule import TIMEZONE
 
 _ACTIVE_MATCH_OF_CHAT = (
@@ -247,3 +247,52 @@ def set_participant_maybe(chat_id: int | str, name: str, is_maybe: bool) -> None
         ).rowcount
         if updated != 1:
             raise ValueError(f"{name!r} is not in the list")
+
+
+def find_reminder_candidates(
+    window_start: datetime, window_end: datetime
+) -> list[ReminderCandidate]:
+    """The matches that started in [start, end) and have no reminder yet, stopped or not,
+    in a stable order."""
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT m.match_uuid, c.telegram_chat_id, m.starts_ts, m.target, "
+            "(SELECT count(*) FROM participant p "
+            "WHERE p.match_uuid = m.match_uuid AND p.status = 'confirmed') "
+            "FROM match m JOIN chat c USING (chat_uuid) "
+            "WHERE m.starts_ts >= %s AND m.starts_ts < %s AND m.reminder_sent_ts IS NULL "
+            "ORDER BY m.starts_ts, m.match_uuid",
+            [window_start, window_end],
+        ).fetchall()
+    return [
+        ReminderCandidate(str(uuid), chat_id, starts, confirmed, target)
+        for uuid, chat_id, starts, target, confirmed in rows
+    ]
+
+
+def claim_reminder(match_uuid: str) -> bool:
+    """Take the reminder of a match before sending it: only one of two concurrent runs gets True."""
+    with connection() as conn:
+        claimed = conn.execute(
+            "UPDATE match SET reminder_sent_ts = now() "
+            "WHERE match_uuid = %s AND reminder_sent_ts IS NULL RETURNING match_uuid",
+            [match_uuid],
+        ).fetchone()
+    return claimed is not None
+
+
+def store_reminder_message_id(match_uuid: str, message_id: int) -> None:
+    with connection() as conn:
+        conn.execute(
+            "UPDATE match SET telegram_reminder_message_id = %s WHERE match_uuid = %s",
+            [message_id, match_uuid],
+        )
+
+
+def release_reminder(match_uuid: str) -> None:
+    """The send failed: give the claim back so a later run of the same window retries."""
+    with connection() as conn:
+        conn.execute(
+            "UPDATE match SET reminder_sent_ts = NULL WHERE match_uuid = %s",
+            [match_uuid],
+        )

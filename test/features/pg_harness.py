@@ -114,6 +114,27 @@ class Database:
                 [chat_uuid, pitch],
             )
 
+    def set_summary_message_id(self, chat_id, message_id):
+        self._set_match(chat_id, "telegram_summary_message_id", message_id)
+
+    def set_starts(self, chat_id, starts):
+        """`starts` is an aware datetime."""
+        self._set_match(chat_id, "starts_ts", starts)
+
+    def fetch_reminder(self, chat_id):
+        """What the latest match of a chat (stopped or not) stores about its payment reminder:
+        (reminder sent, reminder message id, summary message id)."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT m.reminder_sent_ts IS NOT NULL, m.telegram_reminder_message_id, "
+                "m.telegram_summary_message_id FROM match m JOIN chat c USING (chat_uuid) "
+                "WHERE c.telegram_chat_id = %s ORDER BY m.starts_ts DESC LIMIT 1",
+                [chat_id],
+            )
+            row = cur.fetchone()
+        assert row is not None, f"no match stored for chat {chat_id}"
+        return row
+
     def set_players(self, chat_id, players):
         """`players` is a list of (name, is_maybe), in order."""
         match_uuid = self._active_match_uuid(chat_id)

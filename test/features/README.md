@@ -46,6 +46,9 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `the chat has the default pitch "<pitch>"`: gives the chat a setting row with that default pitch, as if it had been set up before.
 - `the match has the players "<a, b (maybe), ...>"`: sets the list directly, in order; ` (maybe)` marks a maybe-present player (how participants are stored lives only in `pg_harness.py`).
 - `the match has the black team "<...>" and the white team "<...>"`: sets the teams directly.
+- `the match starts at "<YYYY-MM-DD HH:MM>"`: sets the start directly in the DB (Europe/Rome).
+- `the match summary is the message <n>`: sets the tracked summary message id directly in the DB.
+- `Telegram refuses the next message the bot sends`: the next `send_message` is answered with a Telegram error (the call is still recorded).
 - `the bot is not an administrator of the chat`: pinning fails with "not enough rights".
 - `today is "<YYYY-MM-DD HH:MM>"`: freezes the clock (Europe/Rome).
 - `the clock moves to "<YYYY-MM-DD HH:MM>"`: re-freezes the clock at another moment.
@@ -57,6 +60,7 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `"<user>" sends the message:` + docstring: same, for multi-line text.
 - `"<user>" edits a message into "<text>"`: the user edits one of their messages, which now reads `<text>` (an `edited_message` update).
 - `the scheduled jobs run`: runs every job captured by the job queue (payment reminders).
+- `the due payment reminders are sent`: runs `send_due_reminders` at the frozen clock; the counts are kept for the Then below.
 
 ### Then
 - `the bot should send:` + docstring: next call is a Markdown `send_message` with exactly this text.
@@ -78,6 +82,9 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `there should be no match for this chat` / `there should be a match for "<chat>"`: existence of the match.
 - `the match of "<chat>" should have no players`: other chat's match is empty.
 - `a payment reminder should be scheduled for "<YYYY-MM-DD HH:MM>"` / `<n> payment reminders should be scheduled for "<...>"` / `no payment reminder should be scheduled`: reminders queued for the current chat (Europe/Rome).
+- `the due reminders should count <n> sent, <n> skipped and <n> failed`: exact counts of the last run.
+- `the payment reminder of "<chat>" should be recorded as message <n> and the summary should stay message <m>`: `reminder_sent_ts` is set and the stored reminder and summary message ids are exactly these (works for stopped matches).
+- `no payment reminder should be recorded for "<chat>"`: `reminder_sent_ts` and the reminder message id are null.
 - `the last thing the bot did should address the chat with its id as a string`: documents that jobs use a string chat id.
 
 ## Determinism hooks
