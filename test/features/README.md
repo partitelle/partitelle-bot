@@ -74,6 +74,7 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `the match should have:` + `| field | value |` table: exact persisted values (fields: players, target, day, time, pitch, description, teams, summary message; `(none)` = empty).
 - `the match description should be:` / `the match pitch should be:` + docstring: exact text.
 - `the match summary message should be the last message of the bot`: tracked summary id equals the bot's last sent message.
+- `the match summary message should not be the last message of the bot`: tracked summary id differs from the bot's last sent message (e.g. after a payment reminder).
 - `there should be no match for this chat` / `there should be a match for "<chat>"`: existence of the match.
 - `the match of "<chat>" should have no players`: other chat's match is empty.
 - `a payment reminder should be scheduled for "<YYYY-MM-DD HH:MM>"` / `<n> payment reminders should be scheduled for "<...>"` / `no payment reminder should be scheduled`: reminders queued for the current chat (Europe/Rome).

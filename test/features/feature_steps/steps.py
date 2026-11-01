@@ -464,3 +464,13 @@ def _addressed_with_string_id(world):
 def _summary_is_last(world):
     match = world.db.fetch_match(world.current_chat.id)
     assert match["summary_message_id"] == world.last_bot_message_id()
+
+
+@then("the match summary message should not be the last message of the bot")
+def _summary_is_not_last(world):
+    match = world.db.fetch_match(world.current_chat.id)
+    assert match["summary_message_id"] is not None, "The match has no summary message."
+    assert match["summary_message_id"] != world.last_bot_message_id(), (
+        f"The summary message is the bot's last message ({world.last_bot_message_id()}), "
+        "which is not expected here."
+    )

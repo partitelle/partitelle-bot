@@ -301,13 +301,13 @@ Feature: Payment reminder
     And a payment reminder should be scheduled for "2026-10-28 22:00"
     And the bot should send nothing else
 
-  Scenario: The reminder asks who has not paid, pins the message and becomes the match summary message
+  Scenario: The reminder asks who has not paid, pins the message and leaves the match summary alone
     Given a match was started
     And "@mario" had sent "/setday 28/10/2026"
     When the scheduled jobs run
     Then the bot should send the plain text "payment reminder"
     And the bot should pin the last message
-    And the match summary message should be the last message of the bot
+    And the match summary message should not be the last message of the bot
     And the bot should send nothing else
 
   # Documents current behaviour (not a bug: Telegram accepts both): the job uses `chat_id = job.name`,
@@ -330,7 +330,7 @@ Feature: Payment reminder
     Then the bot should send the plain text "payment reminder"
     And the bot should pin the last message
     And the bot should log the warning "No admin rights to pin the message"
-    And the match summary message should be the last message of the bot
+    And the match summary message should not be the last message of the bot
     And the bot should send nothing else
 
   Scenario: Reaching the target after /setday keeps a single reminder
@@ -529,14 +529,14 @@ Feature: Payment reminder
     Then there should be no match for this chat
     And the bot should send nothing else
 
-  @known-bug @issue-91
-  Scenario: After the reminder fired, the next summary update edits the pinned reminder message
+  Scenario: After the reminder fired, the next summary update edits the summary, not the reminder
     Given a match was started
     And "@mario" had sent "/setday 28/10/2026"
     When the scheduled jobs run
     Then the bot should send the plain text "payment reminder"
     And the bot should pin the last message
     And the bot should send nothing else
+    And the match summary message should not be the last message of the bot
     When "@mario" sends "/settime 21:30"
     Then the bot should send:
           """
