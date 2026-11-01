@@ -519,8 +519,7 @@ Feature: Payment reminder
     And a payment reminder should be scheduled for "2026-10-28 22:00"
     And the bot should send nothing else
 
-  @known-bug @issue-90
-  Scenario: /stop does not cancel the reminder: it still fires for the deleted match
+  Scenario: /stop cancels the reminder: nothing is sent after the match is deleted
     Given a match was started
     And "@mario" had sent "/setday 28/10/2026"
     When "@mario" sends "/stop"
@@ -528,12 +527,10 @@ Feature: Payment reminder
           """
           Ho cancellato la partita.
           """
-    And a payment reminder should be scheduled for "2026-10-28 22:00"
+    And no payment reminder should be scheduled
     And the bot should send nothing else
     When the scheduled jobs run
-    Then the bot should send the plain text "payment reminder"
-    And the bot should pin the last message
-    And there should be no match for this chat
+    Then there should be no match for this chat
     And the bot should send nothing else
 
   @known-bug @issue-91
