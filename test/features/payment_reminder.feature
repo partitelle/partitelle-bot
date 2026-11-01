@@ -333,8 +333,7 @@ Feature: Payment reminder
     And the match summary message should be the last message of the bot
     And the bot should send nothing else
 
-  @known-bug @issue-89
-  Scenario: Reaching the target after /setday schedules a second reminder
+  Scenario: Reaching the target after /setday keeps a single reminder
     Given a match was started
     And "@mario" had sent "/setnumber 2"
     And "@mario" had sent "/setday 28/10/2026"
@@ -357,11 +356,10 @@ Feature: Payment reminder
           """
     And the bot should pin the summary
     And the bot should send the text "kickoff"
-    And 2 payment reminders should be scheduled for "2026-10-28 22:00"
+    And a payment reminder should be scheduled for "2026-10-28 22:00"
     And the bot should send nothing else
 
-  @known-bug @issue-89
-  Scenario: Reaching the target after /setday makes the reminder fire twice
+  Scenario: Reaching the target after /setday sends the reminder only once
     Given a match was started
     And "@mario" had sent "/setnumber 2"
     And "@mario" had sent "/setday 28/10/2026"
@@ -387,8 +385,6 @@ Feature: Payment reminder
     And the bot should send nothing else
     When the scheduled jobs run
     Then the bot should send the plain text "payment reminder"
-    And the bot should pin the last message
-    And the bot should send the plain text "payment reminder"
     And the bot should pin the last message
     And the bot should send nothing else
 
