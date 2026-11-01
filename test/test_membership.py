@@ -117,3 +117,16 @@ def test_the_cache_is_bounded_and_drops_the_oldest():
     assert len(bot.calls) == 3
     run(cache.check(bot, -1, 1))  # dropped: asked again
     assert len(bot.calls) == 4
+
+
+def test_a_fresh_check_ignores_the_cache_and_refreshes_it():
+    now = [0.0]
+    cache = CachedMembership(clock=lambda: now[0])
+    bot = FakeBot(Member("member"))
+    assert run(cache.check(bot, 1, 2)) is True
+    bot.answer = Member("left")
+    assert run(cache.check(bot, 1, 2)) is True  # remembered
+    assert run(cache.check(bot, 1, 2, fresh=True)) is False  # asked again
+    assert len(bot.calls) == 2
+    assert run(cache.check(bot, 1, 2)) is False  # and the cache learned the answer
+    assert len(bot.calls) == 2

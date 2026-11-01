@@ -38,11 +38,15 @@ class CachedMembership:
         self._max_entries = max_entries
         self._entries: OrderedDict[tuple[int, int], tuple[bool, float]] = OrderedDict()
 
-    async def check(self, bot: Bot, chat_id: int, user_id: int) -> bool:
+    async def check(
+        self, bot: Bot, chat_id: int, user_id: int, *, fresh: bool = False
+    ) -> bool:
+        """Whether the user belongs to the chat. `fresh` skips the remembered answer (writes
+        use it) but still refreshes it for the reads that follow."""
         key = (chat_id, user_id)
         now = self._clock()
         cached = self._entries.get(key)
-        if cached is not None and cached[1] > now:
+        if not fresh and cached is not None and cached[1] > now:
             return cached[0]
         result = await is_member(bot, chat_id, user_id)
         ttl = POSITIVE_TTL if result else NEGATIVE_TTL

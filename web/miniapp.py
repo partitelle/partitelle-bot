@@ -20,11 +20,15 @@ from starlette.staticfiles import StaticFiles
 from telegram.error import NetworkError, TimedOut
 from telegram.ext import Application
 
-from behaviours.publish_change import publish_change
+from behaviours import replies
+from behaviours.publish_change import publish_changes
 from db.repository import find_chat_by_miniapp_token, get_match
 from domain import Change, Match, Person, display_name
+from domain.names import is_command_name, parse_names, parse_swap, plain_text
 from domain.schedule import format_day, format_time
+from domain.teams import SwapOutcome
 from usecases import participation
+from usecases import teams as teams_usecase
 from web.init_data import InitData, InvalidInitData, validate_init_data
 from web.membership import CachedMembership
 from web.rate_limit import RateLimiter
@@ -32,11 +36,20 @@ from web.rate_limit import RateLimiter
 logger = logging.getLogger(__name__)
 
 AUTH_SCHEME = "tma"
-MAX_BODY = 1024  # bytes
+MAX_BODY = 4096  # bytes: room for 500 characters, even escaped
+MAX_TEXT = 500  # characters of a typed name or list of names
 ACTIONS: dict[str, Callable[[int, Person], Change | None]] = {
     "join": participation.join,
     "maybe": participation.maybe,
     "leave": participation.leave,
+}
+# the other actions, with the string fields each one takes
+OTHER_ACTIONS: dict[str, tuple[str, ...]] = {
+    "add": ("text",),
+    "propose": ("text",),
+    "remove": ("name",),
+    "swap": ("x", "y"),
+    "teams": (),
 }
 API_PER_MINUTE = 600  # all API requests together, checked before any HMAC work
 USER_PER_MINUTE = 60
@@ -92,6 +105,7 @@ def _state(match: Match, person: Person) -> dict[str, Any]:
             "time": format_time(match.starts),
             "target": match.target,
             "has_room": match.has_room,
+            "description": plain_text(match.description),
             "pitch": match.pitch,
             "confirmed": match.confirmed_names(),
             "maybe": [p.name for p in match.participants if p.is_maybe],
@@ -155,12 +169,14 @@ def miniapp_routes(
             raise _Stop(_error(429, "rate_limited"))
         return data, Person(name, data.user_id)
 
-    async def authorize(data: InitData) -> int:
+    async def authorize(data: InitData, fresh: bool) -> int:
         """The chat of the match the user opened, once they are known to belong to it."""
         chat_id = await asyncio.to_thread(find_chat_by_miniapp_token, data.start_param)
         if chat_id is None:
             raise _Stop(_error(404, "match_closed"))
-        if not await membership.check(application.bot, chat_id, data.user_id):
+        if not await membership.check(
+            application.bot, chat_id, data.user_id, fresh=fresh
+        ):
             raise _Stop(_error(403, "not_member"))
         return chat_id
 
@@ -174,6 +190,8 @@ def miniapp_routes(
         request: Request,
         body_ok: Callable[[Any], bool],
         run: Callable[[Request, int, Person, Any], Any],
+        *,
+        fresh: bool = False,
     ) -> Response:
         try:
             data, person = await authenticate(request)
@@ -183,7 +201,7 @@ def miniapp_routes(
                 return _error(400, "bad_request")
             if not body_ok(body):
                 return _error(400, "bad_request")
-            chat_id = await authorize(data)
+            chat_id = await authorize(data, fresh)
             return JSONResponse(
                 await run(request, chat_id, person, body), headers=API_HEADERS
             )
@@ -202,44 +220,141 @@ def miniapp_routes(
     ) -> dict[str, Any]:
         return await read_state(chat_id, person)
 
+    async def write(function: Callable[..., Any], *args: Any) -> Any:
+        """A database write on a thread; the match is gone (404) or a race was lost (409)."""
+        try:
+            result = await asyncio.to_thread(function, *args)
+        except ValueError:  # lost a race with another writer
+            raise _Stop(_error(409, "conflict")) from None
+        except LookupError:  # the match was stopped in the meantime
+            raise _Stop(_error(404, "match_closed")) from None
+        if result is None:
+            raise _Stop(_error(404, "match_closed"))
+        return result
+
+    async def announce(
+        chat_id: int, reply: str, changes: Sequence[Change] = ()
+    ) -> None:
+        """What the group sees, in the chat's order: the reply, then the effects of the
+        changes. The write is done: a Telegram failure is only logged (by type)."""
+        try:
+            await application.bot.send_message(
+                chat_id=chat_id, parse_mode="markdown", text=reply
+            )
+        except Exception as error:
+            logger.warning(
+                "Mini app: could not update the group: %s", type(error).__name__
+            )
+        if not changes:
+            return
+        try:
+            await publish_changes(application.bot, chat_id, changes)
+        except Exception as error:
+            logger.warning(
+                "Mini app: could not update the group: %s", type(error).__name__
+            )
+
+    def invalid_name() -> _Stop:
+        return _Stop(_error(422, "invalid_name"))
+
+    async def run_self(chat_id: int, person: Person, action: str) -> dict[str, Any]:
+        change = await write(ACTIONS[action], chat_id, person)
+        match = await write(get_match, chat_id)
+        await announce(
+            chat_id, replies.self_reply(change, person.name, match), [change]
+        )
+        return {
+            "outcome": change.outcome.value,
+            "teams_cancelled": change.revokes_teams,
+        }
+
+    async def run_names(chat_id: int, action: str, text: str) -> dict[str, Any]:
+        names = parse_names(text.lower())
+        if not names or any(is_command_name(name) for name in names):
+            raise invalid_name()
+        before = await write(get_match, chat_id)
+        if action == "add":
+            changes = await write(participation.add_names, chat_id, names)
+            reply = replies.add_reply(names, changes, before)
+        else:
+            changes = await write(participation.propose_names, chat_id, names)
+            reply = replies.propose_reply(names, changes, before)
+        await announce(chat_id, reply, changes)
+        return {
+            "changes": [
+                {"name": name, "outcome": change.outcome.value}
+                for name, change in zip(dict.fromkeys(names), changes)
+            ],
+            "teams_cancelled": any(change.revokes_teams for change in changes),
+            "reached_target": any(change.reached_target for change in changes),
+        }
+
+    async def run_remove(chat_id: int, name: str) -> dict[str, Any]:
+        name = name.lower().strip()
+        if not name or is_command_name(name):
+            raise invalid_name()
+        change = await write(participation.remove_name, chat_id, name)
+        await announce(chat_id, replies.remove_reply(name, change), [change])
+        return {
+            "outcome": change.outcome.value,
+            "teams_cancelled": change.revokes_teams,
+        }
+
+    async def run_swap(chat_id: int, x: str, y: str) -> dict[str, Any]:
+        x, y = x.lower().strip(), y.lower().strip()
+        # parsed as the chat parses "scambia <x> con <y>": a name holding " con " is refused
+        names = parse_swap(f"scambia {x} con {y}") if x and y else None
+        if names is None:
+            raise invalid_name()
+        result = await write(teams_usecase.swap, chat_id, *names)
+        await announce(chat_id, replies.swap_reply(result))
+        answer: dict[str, Any] = {"outcome": result.outcome.value}
+        if result.outcome == SwapOutcome.NOT_IN_TEAMS:
+            answer["missing"] = result.missing
+        return answer
+
+    async def run_teams(chat_id: int) -> dict[str, Any]:
+        result = await write(teams_usecase.make_teams, chat_id)
+        await announce(chat_id, replies.teams_reply(result))
+        return {"outcome": result.outcome.value}
+
     async def run_action(
         request: Request, chat_id: int, person: Person, body: Any
     ) -> Any:
         if not action_limiter.allow(person.telegram_user_id):
             raise _Stop(_error(429, "rate_limited"))
-        try:
-            change = await asyncio.to_thread(ACTIONS[body["action"]], chat_id, person)
-        except ValueError:  # lost a race with another writer
-            raise _Stop(_error(409, "conflict")) from None
-        except LookupError:  # the match was stopped in the meantime
-            raise _Stop(_error(404, "match_closed")) from None
-        if change is None:
-            raise _Stop(_error(404, "match_closed"))
-        try:
-            await publish_change(application.bot, chat_id, change)
-        except Exception as error:
-            logger.warning(
-                "Mini app: could not update the group: %s", type(error).__name__
-            )
-        return {
-            "outcome": change.outcome.value,
-            "teams_cancelled": change.revokes_teams,
-            "state": await read_state(chat_id, person),
-        }
+        action = body["action"]
+        if action in ACTIONS:
+            answer = await run_self(chat_id, person, action)
+        elif action in ("add", "propose"):
+            answer = await run_names(chat_id, action, body["text"])
+        elif action == "remove":
+            answer = await run_remove(chat_id, body["name"])
+        elif action == "swap":
+            answer = await run_swap(chat_id, body["x"], body["y"])
+        else:
+            answer = await run_teams(chat_id)
+        return {**answer, "state": await read_state(chat_id, person)}
 
     async def api_match(request: Request) -> Response:
         return await handle(request, lambda body: body == {}, run_match)
 
     async def api_action(request: Request) -> Response:
         def valid(body: Any) -> bool:
+            if not isinstance(body, dict) or not isinstance(body.get("action"), str):
+                return False
+            action = body["action"]
+            fields = () if action in ACTIONS else OTHER_ACTIONS.get(action)
             return (
-                isinstance(body, dict)
-                and set(body) == {"action"}
-                and isinstance(body["action"], str)
-                and body["action"] in ACTIONS
+                fields is not None
+                and set(body) == {"action", *fields}
+                and all(
+                    isinstance(body[f], str) and len(body[f]) <= MAX_TEXT
+                    for f in fields
+                )
             )
 
-        return await handle(request, valid, run_action)
+        return await handle(request, valid, run_action, fresh=True)
 
     return [
         Route("/app", page, methods=["GET"]),
