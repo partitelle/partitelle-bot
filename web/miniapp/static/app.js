@@ -133,7 +133,8 @@
   // ---- derived values ----
   function counts(s) {
     var m = s.match, c = m.confirmed.length, may = m.maybe.length;
-    return { c: c, may: may, t: m.target, full: m.has_room === false || c + may >= m.target };
+    return { c: c, may: may, t: m.target, free: Math.max(0, m.target - c - may),
+      full: m.has_room === false || c + may >= m.target };
   }
   function hasTeams(m) {
     return !!(m.teams && ((m.teams.black && m.teams.black.length) || (m.teams.white && m.teams.white.length)));
@@ -161,12 +162,22 @@
   function renderHero(m, k) {
     var hero = h('section', 'hero');
     var top = h('div', 'hero-top');
-    add(top, h('h1', null, (m.day + ' · ' + m.time).toLowerCase()), mark());
-    var left = k.t - k.c, tail;
-    if (k.c === 0) tail = 'ancora nessuno';
-    else if (left <= 0) tail = 'lista completa';
-    else tail = left === 1 ? 'manca uno' : 'mancano ' + left;
-    add(hero, top, h('p', 'count', k.c + '/' + k.t + ' · ' + tail));
+    var h1 = h('h1');
+    add(h1, h('span', 'nw', m.day.replace(/\/\d{4}$/, '').toLowerCase()), document.createTextNode(' · '),
+      h('span', 'nw', m.time.toLowerCase()));
+    add(top, h1, mark());
+    var parts = [k.c + '/' + k.t], tail;
+    if (k.may > 0) parts.push(k.may + ' in forse');
+    if (k.c === 0 && k.may === 0) tail = 'ancora nessuno';
+    else if (k.full) tail = 'lista completa';
+    else tail = k.free === 1 ? 'manca uno' : 'mancano ' + k.free;
+    parts.push(tail);
+    var count = h('p', 'count');
+    parts.forEach(function (t, i) {
+      if (i) count.appendChild(document.createTextNode(' · '));
+      count.appendChild(h('span', 'nw', t));
+    });
+    add(hero, top, count);
     if (m.pitch) hero.appendChild(h('p', 'pitch', m.pitch));
     return hero;
   }
@@ -176,7 +187,7 @@
     var sec = h('section', 'sec');
     sec.appendChild(h('h2', null, 'ci sono (' + k.c + ')'));
     var ol = numbered(m.confirmed, me);
-    for (var i = k.c + 1; i <= k.t; i++) {
+    for (var i = k.c + 1; i <= k.c + k.free; i++) {
       var li = h('li', 'row free');
       add(li, h('span', 'n', String(i)), h('span', 'nm', 'posto libero'));
       ol.appendChild(li);
@@ -269,13 +280,13 @@
     var pos = 0;
     s.match.confirmed.forEach(function (n, i) { if (!pos && sameName(n, s.me.name)) pos = i + 1; });
     if (st === 'in') {
-      line = 'ci sei · n. ' + pos; inRow = true;
+      line = pos ? 'ci sei · n. ' + pos : 'ci sei'; inRow = true;
       a = ['forse', 'maybe']; b = ['non vengo', 'leave'];
     } else if (st === 'maybe') {
-      line = k.full ? 'sei in forse · lista completa' : 'sei in forse';
+      line = 'sei in forse';
       a = ['ci sono', 'join']; b = ['non vengo', 'leave'];
     } else {
-      line = k.full ? 'lista completa · ' + k.c + '/' + k.t : 'non sei in lista';
+      line = k.full ? 'lista completa' : 'non sei in lista';
       a = ['ci sono', 'join']; b = k.full ? null : ['forse', 'maybe'];
     }
     var inner = h('div', 'bar-in');

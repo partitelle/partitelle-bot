@@ -44,6 +44,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .hero { background: var(--app-accent); color: var(--app-on-accent); border-radius: 24px; padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; }
 .hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .hero h1 { font-size: 24px; font-weight: 700; line-height: 1.15; }
+.nw { white-space: nowrap; }
+@media (max-width: 359px) { .hero h1 { font-size: 20px; } }
 .hero .mark { color: #111111; }
 .hero .count { font-size: 16px; font-weight: 700; }
 .hero .pitch { font-size: 14px; color: var(--muted-on-accent); white-space: pre-line; }
@@ -84,9 +86,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .bar-in { max-width: 390px; margin: 0 auto; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
 .status { font-size: 14px; color: var(--app-muted); }
 .btns { display: flex; gap: 8px; }
-.btn { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid transparent; font-size: 16px; font-weight: 700; text-align: center; }
+.btn { white-space: nowrap; display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid transparent; font-size: 16px; font-weight: 700; text-align: center; }
 .btns .btn { flex: 1; }
 .btns .btn.primary { flex: 2; }
+@media (max-width: 359px) { .btns .btn.primary { flex: 1; } }
 .btn.primary { background: var(--app-primary); color: var(--app-on-primary); }
 .btn.outline { background: var(--app-surface); color: var(--app-text); border-color: var(--line); }
 .btn[aria-disabled="true"] { background: var(--app-surface-alt); color: var(--app-muted); border-color: var(--line); }
