@@ -4,7 +4,16 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PRODUCTION_DIRS = ["web", "callbacks", "behaviours", "jobs", "utils", "domain", "conf"]
+PRODUCTION_DIRS = [
+    "web",
+    "callbacks",
+    "behaviours",
+    "jobs",
+    "utils",
+    "domain",
+    "usecases",
+    "conf",
+]
 PRODUCTION_FILES = ["handlers.py", "main.py"]
 SQL_KEYWORDS = ["SELECT ", "INSERT INTO", "UPDATE ", "DELETE FROM"]
 
@@ -71,3 +80,8 @@ def test_domain_is_pure():
 def test_no_sql_outside_db():
     found = _containing(_sources(), SQL_KEYWORDS)
     assert not found, f"queries belong in db/: {found}"
+
+
+def test_usecases_do_not_know_telegram():
+    found = _importers(sorted((ROOT / "usecases").rglob("*.py")), {"telegram"})
+    assert not found, f"usecases/ must not depend on telegram: {found}"

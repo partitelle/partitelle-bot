@@ -1,17 +1,16 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
-from behaviours.edit_summary import edit_summary
-from behaviours.print_new_summary import print_new_summary
+from behaviours.publish_change import publish_change, refresh_summary
 from db.repository import (
     add_participant,
     get_match,
     remove_participant,
     save_teams,
     set_participant_maybe,
-    set_summary_message_id,
 )
-from domain import Participant
+from domain import Outcome, Participant
+from usecases import participation
 from utils.utils import (
     parse_names,
     join_names,
@@ -20,8 +19,26 @@ from utils.utils import (
     get_sender_mention,
     swap_players,
     parse_swap,
-    format_summary,
 )
+
+SELF_ACTIONS = {
+    "aggiungimi": participation.join,
+    "proponimi": participation.maybe,
+    "toglimi": participation.leave,
+}
+
+# the answer of each outcome, {0} is the sender
+SELF_ANSWERS = {
+    Outcome.ADDED: "Ok, {0}, ti aggiungo",
+    Outcome.CONFIRMED: "Ok, {0}, ti confermo",
+    Outcome.ALREADY_IN: "Ma {0}, sei già nella lista",
+    Outcome.PROPOSED: "Ok, {0}, ti propongo",
+    Outcome.MOVED_TO_MAYBE: "Ok, {0}, ti metto in forse",
+    Outcome.ALREADY_MAYBE: "Ma {0}, sei già in forse",
+    Outcome.REMOVED: "Mamma mia... che paccaro",
+    Outcome.REMOVED_MAYBE: "Peccato, un po' ci avevo sperato",
+    Outcome.NOT_IN: "Non eri in lista neanche prima",
+}
 
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,7 +64,25 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         or command in ["aggiungi", "togli", "proponi"]
         or command == "scambia"
     ):
-        match = get_match(chat_id)
+        if is_self_action:
+            change = SELF_ACTIONS[new_message](chat_id, sender)
+            if change is None:
+                match = None
+            else:
+                if change.outcome == Outcome.FULL:
+                    # nothing was written: the list is as the use case saw it
+                    answer = already_in_message(get_match(chat_id))
+                else:
+                    answer = SELF_ANSWERS[change.outcome].format(sender)
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    parse_mode="markdown",
+                    text=escape_markdown(answer),
+                )
+                await publish_change(context.bot, chat_id, change)
+                return
+        else:
+            match = get_match(chat_id)
         if match is None:
             answer = "Prima di iniziare con le danze, avvia una partita, per farlo usa /start"
             await context.bot.send_message(
@@ -59,26 +94,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target = match.target
             teams = match.teams
 
-            if new_message == "aggiungimi":
-                if match.find(sender, False):
-                    answer = "Ma " + sender + ", sei già nella lista"
-                    show_summary = False
-                elif match.find(sender, True):
-                    answer = "Ok, " + sender + ", ti confermo"
-                    set_participant_maybe(chat_id, sender, False)
-                    show_summary = True
-                    reached_target = match.confirmed_count + 1 == target
-                else:
-                    if match.has_room:
-                        answer = "Ok, " + sender + ", ti aggiungo"
-                        add_participant(chat_id, Participant(sender))
-                        show_summary = True
-                        reached_target = match.confirmed_count + 1 == target
-                    else:
-                        answer = already_in_message(match)
-                        show_summary = False
-
-            elif command == "aggiungi":
+            if command == "aggiungi":
                 names = parse_names(new_message[len(command) :])
                 show_summary = False
                 if not names:
@@ -144,25 +160,6 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     answer = escape_markdown(". ".join(sentences))
                     answer_is_escaped = True
 
-            elif new_message == "proponimi":
-                if match.find(sender, True):
-                    answer = "Ma " + sender + ", sei già in forse"
-                    show_summary = False
-                elif match.find(sender, False):
-                    answer = "Ok, " + sender + ", ti metto in forse"
-                    set_participant_maybe(chat_id, sender, True)
-                    show_summary = True
-                    revoked_teams = teams is not None
-                else:
-                    if match.has_room:
-                        answer = "Ok, " + sender + ", ti propongo"
-                        add_participant(chat_id, Participant(sender, True))
-                        show_summary = True
-                        revoked_teams = teams is not None
-                    else:
-                        answer = already_in_message(match)
-                        show_summary = False
-
             elif command == "proponi":
                 names = parse_names(new_message[len(command) :])
                 show_summary = False
@@ -220,22 +217,6 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             sentences.append(already_in_message(current))
                     answer = escape_markdown(". ".join(sentences))
                     answer_is_escaped = True
-
-            elif new_message == "toglimi":
-                if match.find(sender, False):
-                    answer = "Mamma mia... che paccaro"
-                    remove_participant(chat_id, Participant(sender))
-                    show_summary = True
-                    revoked_teams = teams is not None
-                else:
-                    if match.find(sender, True):
-                        answer = "Peccato, un po' ci avevo sperato"
-                        remove_participant(chat_id, Participant(sender, True))
-                        show_summary = True
-                        revoked_teams = teams is not None
-                    else:
-                        answer = "Non eri in lista neanche prima"
-                        show_summary = False
 
             elif command == "togli":
                 to_be_removed = new_message[len(command) :].strip()
@@ -307,15 +288,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
             if show_summary:
-                current = get_match(chat_id)
-                current_situation = format_summary(current)
-                if current.summary_message_id is None:
-                    msg = await print_new_summary(current_situation, update, context)
-                    set_summary_message_id(chat_id, msg.message_id)
-                else:
-                    await edit_summary(
-                        current_situation, current.summary_message_id, update, context
-                    )
+                await refresh_summary(context.bot, chat_id)
 
                 if reached_target:
                     await context.bot.send_message(
