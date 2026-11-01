@@ -1,5 +1,7 @@
 """The add, propose, remove, swap and teams use cases against the real test database."""
 
+import pytest
+
 from db.repository import add_participant, get_match, save_teams
 from domain import Change, Outcome, Participant, Person, Teams
 from domain.teams import SwapOutcome, SwapResult, TeamsOutcome, TeamsResult
@@ -196,3 +198,28 @@ def test_teams_all_outcomes_with_a_deterministic_draw(db):
         TeamsOutcome.SHOW_EXISTING, 4, stored_teams
     )
     assert get_match(CHAT).teams == stored_teams
+
+
+@pytest.mark.parametrize(
+    "function, is_maybe", [(add_names, False), (propose_names, True)]
+)
+def test_a_match_stopped_in_the_middle_of_a_batch_raises_lookup_error(
+    db, monkeypatch, function, is_maybe
+):
+    start(db, "anna")
+    real = participation.get_match
+    reads = []
+
+    def vanishing(chat_id):
+        reads.append(chat_id)
+        return real(chat_id) if len(reads) <= 2 else None  # up front, then 1st name
+
+    monkeypatch.setattr(participation, "get_match", vanishing)
+    with pytest.raises(LookupError) as raised:
+        function(CHAT, ["bea", "carlo"])
+    assert "bea" not in str(raised.value) and "carlo" not in str(raised.value)
+    assert len(reads) == 3
+    assert stored() == {
+        ("anna", False),
+        ("bea", is_maybe),
+    }  # the first name was written

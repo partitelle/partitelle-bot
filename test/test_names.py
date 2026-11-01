@@ -1,6 +1,8 @@
 import unittest
 
-from domain.names import is_command_name, parse_names, parse_swap
+import pytest
+
+from domain.names import is_command_name, parse_names, parse_swap, plain_text
 
 
 class TestNames(unittest.TestCase):
@@ -33,3 +35,24 @@ class TestNames(unittest.TestCase):
             "scambia anna conbea",
         ]:
             self.assertIsNone(parse_swap(text))
+
+
+@pytest.mark.parametrize(
+    "markdown, expected",
+    [
+        (None, None),
+        ("", None),
+        ("  \n ", None),
+        ("None", None),
+        (" None \n", None),
+        ("**", None),
+        ("plain  \n\n", "plain"),
+        ("*bold* and _italic_ and `code`", "bold and italic and code"),
+        ("see [the pitch](https://example.org/a_b) now", "see the pitch now"),
+        ("[a](u) [b](v)", "a b"),
+        ("two\nlines \n", "two\nlines"),
+        ("Nonexistent", "Nonexistent"),
+    ],
+)
+def test_plain_text(markdown, expected):
+    assert plain_text(markdown) == expected

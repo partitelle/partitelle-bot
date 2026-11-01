@@ -22,6 +22,13 @@ from web.rate_limit import RateLimiter
 
 STARTS = datetime(2026, 11, 4, 20, 0, tzinfo=ZoneInfo("Europe/Rome"))
 SUMMARY_ID = 5
+# the default description of a match, as plain text
+DESCRIPTION = (
+    "5 goal di scarto e le squadre si potrebbero cambiare \n"
+    "6 goal di scarto e le squadre si devono cambiare \n"
+    "(ditelo a chiunque invitate) \n"
+    "PORTARE UNA MAGLIA BIANCA E UNA COLORATA"
+)
 
 
 class Env:
@@ -90,6 +97,7 @@ def state(confirmed=(), maybe=(), teams=None, has_room=True, status="out"):
             "time": "20:00",
             "target": 4,
             "has_room": has_room,
+            "description": DESCRIPTION,
             "pitch": None,
             "confirmed": list(confirmed),
             "maybe": list(maybe),
@@ -156,7 +164,10 @@ def test_join_stores_the_user_id_and_refreshes_the_summary_with_the_button(env):
         "state": state(["@anna_b"], status="in"),
     }
     assert env.players() == [("@anna_b", False, env.anna.id)]
-    (edit, pin) = env.calls()
+    (reply, edit, pin) = env.calls()
+    assert reply.method == "send_message"
+    assert reply.params["parse_mode"] == "markdown"
+    assert reply.params["text"] == "Ok, @anna\\_b, ti aggiungo"
     assert edit.method == "edit_message_text"
     assert edit.params["message_id"] == SUMMARY_ID
     assert "1. @anna\\_b ✅" in edit.params["text"]
@@ -171,17 +182,26 @@ def test_join_stores_the_user_id_and_refreshes_the_summary_with_the_button(env):
     assert pin.method == "pin_chat_message"
 
 
-def test_no_personal_message_is_sent_to_the_group(env):
+def test_the_group_gets_the_chat_reply_and_nothing_in_place_of_the_typed_message(env):
     env.act("join")
-    assert "send_message" not in [c.method for c in env.calls()]
+    assert [c.method for c in env.calls()] == [
+        "send_message",
+        "edit_message_text",
+        "pin_chat_message",
+    ]
 
 
 def test_join_reaching_the_target_announces_it(env):
     env.db.set_players(env.chat.id, [("a", False), ("b", False), ("c", False)])
     assert env.act("join").json()["outcome"] == "added"
     methods = [c.method for c in env.calls()]
-    assert methods == ["edit_message_text", "pin_chat_message", "send_message"]
-    assert "SI GIOCA" in env.calls()[2].params["text"]
+    assert methods == [
+        "send_message",
+        "edit_message_text",
+        "pin_chat_message",
+        "send_message",
+    ]
+    assert "SI GIOCA" in env.calls()[3].params["text"]
 
 
 def test_maybe_then_leave(env):
@@ -204,7 +224,10 @@ def test_maybe_and_leave_with_teams_cancel_them(env):
     assert body["state"]["match"]["teams"] is None
     assert get_match(env.chat.id).teams is None
     sent = [c for c in env.calls() if c.method == "send_message"]
-    assert [c.params["text"] for c in sent] == ["*SQUADRE ANNULLATE*"]
+    assert [c.params["text"] for c in sent] == [
+        "Ok, @anna\\_b, ti metto in forse",
+        "*SQUADRE ANNULLATE*",
+    ]
 
     env.db.set_teams(env.chat.id, ["b"], ["c"])
     env.world.forget_calls()
@@ -213,7 +236,10 @@ def test_maybe_and_leave_with_teams_cancel_them(env):
     assert body["teams_cancelled"] is True
     assert get_match(env.chat.id).teams is None
     sent = [c for c in env.calls() if c.method == "send_message"]
-    assert [c.params["text"] for c in sent] == ["*SQUADRE ANNULLATE*"]
+    assert [c.params["text"] for c in sent] == [
+        "Peccato, un po' ci avevo sperato",
+        "*SQUADRE ANNULLATE*",
+    ]
 
 
 def test_a_full_match_refuses_without_writing(env):
@@ -225,7 +251,8 @@ def test_a_full_match_refuses_without_writing(env):
     assert response.json()["outcome"] == "full"
     assert response.json()["teams_cancelled"] is False
     assert [p[0] for p in env.players()] == ["a", "b", "c", "d"]
-    assert env.calls() == []
+    (reply,) = env.calls()  # only the answer, as in the chat: the list did not change
+    assert reply.params["text"] == "Siete già in 4 (1 in forse)"
 
 
 def test_a_name_held_by_another_user_is_refused(env):
@@ -233,7 +260,11 @@ def test_a_name_held_by_another_user_is_refused(env):
     response = env.act("join")
     assert response.json()["outcome"] == "name_taken"
     assert env.players() == [("@anna_b", False, 31337)]
-    assert env.calls() == []
+    (reply,) = env.calls()
+    assert (
+        reply.params["text"]
+        == "Ma @anna\\_b, c'è già qualcuno con questo nome nella lista"
+    )
 
 
 def test_repeating_an_action_changes_nothing(env):
@@ -377,17 +408,17 @@ def test_a_bad_match_body_is_a_bad_request(env):
         assert response.status_code == 400
 
 
-def test_the_body_is_capped_at_1kb(env):
-    padding = " " * 1024
+def test_the_body_is_capped_at_4kb(env):
+    padding = " " * 4096
     ok = env.client.post(
         "/app/api/action",
-        content=('{"action": "join"}' + padding)[:1024],
+        content=('{"action": "join"}' + padding)[:4096],
         headers=env.auth(),
     )
     assert ok.status_code == 200
     big = env.client.post(
         "/app/api/action",
-        content=('{"action": "join"}' + padding)[:1025],
+        content=('{"action": "join"}' + padding)[:4097],
         headers=env.auth(),
     )
     assert big.status_code == 400
@@ -399,7 +430,7 @@ class Down:
     def __init__(self, text):
         self.text = text
 
-    async def check(self, bot, chat_id, user_id):
+    async def check(self, bot, chat_id, user_id, fresh=False):
         raise TimedOut(self.text)
 
 
@@ -679,6 +710,14 @@ def test_nothing_sensitive_is_ever_logged(env, caplog, monkeypatch):
     # Telegram failing while the error text holds personal data
     env.world.telegram.fail_next("edit_message_text", f"{SECRET_USERNAME} {SECRET_ID}")
     results.append(post("/app/api/action", {"action": "join"}))
+    # acting on others and swapping, with the group's reply failing and a name in the error
+    for body in (
+        {"action": "add", "text": f"{SECRET_USERNAME}, ex_unico"},
+        {"action": "remove", "name": SECRET_USERNAME},
+        {"action": "swap", "x": SECRET_USERNAME, "y": "ex_unico"},
+    ):
+        env.world.telegram.fail_next("send_message", f"{SECRET_USERNAME} {SECRET_ID}")
+        results.append(post("/app/api/action", body))
 
     down = TestClient(
         create_app(
