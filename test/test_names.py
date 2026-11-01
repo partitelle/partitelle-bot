@@ -1,6 +1,8 @@
 import unittest
 
-from domain.names import is_command_name, parse_names, parse_swap
+import pytest
+
+from domain.names import is_command_name, parse_names, parse_swap, plain_text
 
 
 class TestNames(unittest.TestCase):
@@ -33,3 +35,34 @@ class TestNames(unittest.TestCase):
             "scambia anna conbea",
         ]:
             self.assertIsNone(parse_swap(text))
+
+
+@pytest.mark.parametrize(
+    "markdown, expected",
+    [
+        (None, None),
+        ("", None),
+        ("  \n ", None),
+        ("None", None),
+        (" None \n", None),
+        ("**", None),
+        ("plain  \n\n", "plain"),
+        ("*bold* and _italic_ and `code`", "bold and italic and code"),
+        ("see [the pitch](https://example.org/a_b) now", "see the pitch now"),
+        ("[a](u) [b](v)", "a b"),
+        ("two\nlines \n", "two\nlines"),
+        ("Nonexistent", "Nonexistent"),
+        (r"price \*5 and \_x\_ and \`k\` and \[a]", "price *5 and _x_ and `k` and [a]"),
+        (r"\*not bold\*", "*not bold*"),
+        ("campo_nord e campo_sud", "campo_nord e campo_sud"),
+        ("a * b", "a * b"),
+        ("a * b * c", "a * b * c"),
+        ("5 * 3_", "5 * 3_"),
+        ("*bold*", "bold"),
+        ("_it_", "it"),
+        ("_it_ campo_nord *b* a * b", "it campo_nord b a * b"),
+        (r"*bold \* star* and _it_ [l_1](http://x/y_z)", "bold * star and it l_1"),
+    ],
+)
+def test_plain_text(markdown, expected):
+    assert plain_text(markdown) == expected
