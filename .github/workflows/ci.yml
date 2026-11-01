@@ -21,7 +21,7 @@ jobs:
     # The suite creates its own `partitelle_test` database and rebuilds its `staging` schema through the real migrations (db/migrate.py).
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17.11
         env:
           POSTGRES_USER: partitelle
           POSTGRES_PASSWORD: partitelle
