@@ -1,15 +1,12 @@
 import logging
 
-from telegram import Update
-from telegram.ext import ContextTypes
+from telegram import Bot
 from telegram.helpers import escape_markdown
 
 logger = logging.getLogger(__name__)
 
 
-async def print_new_summary(
-    current_situation, update: Update, context: ContextTypes.DEFAULT_TYPE
-):
+async def print_new_summary(current_situation, bot: Bot, chat_id: int):
     error_message = (
         "Sembra che tu abbia inserito nella descrizione un carattere speciale di telegram (`, *, _).\n"
         "Per favore cambiala con /setdescription <descrizione> assicurandoti di non inserire uno di questi caratteri.\n"
@@ -17,22 +14,20 @@ async def print_new_summary(
     )
 
     try:
-        msg = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        msg = await bot.send_message(
+            chat_id=chat_id,
             parse_mode="markdown",
             text=current_situation,
         )
     except Exception:
-        msg = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        msg = await bot.send_message(
+            chat_id=chat_id,
             parse_mode="markdown",
             text=escape_markdown(error_message),
         )
     else:
         try:
-            await context.bot.pin_chat_message(
-                chat_id=update.effective_chat.id, message_id=msg.message_id
-            )
+            await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id)
         except Exception:
             logger.warning("No admin rights to pin the message")
     return msg

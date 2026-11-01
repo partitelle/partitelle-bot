@@ -74,10 +74,10 @@ mypy_path = "."
 # is followed silently, so not-yet-typed modules report nothing.
 # To bring a module under checking, annotate it fully, add it to `files` and to the strict override.
 follow_imports = "silent"
-files = ["domain", "db/repository.py", "db/connection.py"]
+files = ["domain", "usecases", "db/repository.py", "db/connection.py"]
 
 [[tool.mypy.overrides]]
-module = ["domain.*", "db.repository", "db.connection"]
+module = ["domain.*", "usecases.*", "db.repository", "db.connection"]
 strict = true
 
 [[tool.mypy.overrides]]
