@@ -25,6 +25,8 @@ SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"
 HEALTH_CORS_ORIGIN = "https://partitelle.com"
 HEALTH_TIMEOUT = 5  # seconds, for the whole database check
 
+MIN_JOBS_SECRET_LENGTH = 32
+
 DatabaseCheck = Callable[[], Awaitable[None]]
 ReminderSender = Callable[[Any, datetime], Awaitable[dict[str, int]]]
 Clock = Callable[[], datetime]
@@ -32,6 +34,11 @@ Clock = Callable[[], datetime]
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def jobs_secret_is_usable(secret: str | None) -> bool:
+    """A jobs secret is used only when it has at least MIN_JOBS_SECRET_LENGTH characters."""
+    return bool(secret) and len(secret or "") >= MIN_JOBS_SECRET_LENGTH
 
 
 def resolve_version(environ: Mapping[str, str] = os.environ) -> str:
@@ -61,7 +68,8 @@ def create_app(
 ) -> Starlette:
     """Build the web app. `application` receives the updates, `secret` guards the webhook.
 
-    `jobs_secret` guards the jobs endpoints; when unset or empty they are disabled (404).
+    `jobs_secret` guards the jobs endpoints; when unset, empty or shorter than
+    MIN_JOBS_SECRET_LENGTH characters they are disabled (404).
     """
 
     async def telegram(request: Request) -> Response:
@@ -99,7 +107,7 @@ def create_app(
         return JSONResponse(body, status_code=status_code, headers=headers)
 
     async def payment_reminders(request: Request) -> Response:
-        if not jobs_secret:
+        if not jobs_secret_is_usable(jobs_secret):
             return Response(status_code=404)
         scheme, _, token = request.headers.get("Authorization", "").partition(" ")
         if scheme != "Bearer" or not hmac.compare_digest(

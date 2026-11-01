@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import hmac
 import logging
 import os
 
@@ -8,20 +9,44 @@ from telegram.ext import Application, ContextTypes
 
 from conf.conf import token, hosting_url, env, webhook_secret, jobs_secret
 from handlers import register_handlers
-from web.app import WEBHOOK_PATH, create_app
+from web.app import (
+    MIN_JOBS_SECRET_LENGTH,
+    WEBHOOK_PATH,
+    create_app,
+    jobs_secret_is_usable,
+)
 
 logger = logging.getLogger(__name__)
+
+WEBHOOK_SECRET_LABEL = b"partitelle-webhook-secret-v1"
 
 
 def compute_webhook_secret(bot_token, configured_secret=None):
     """Secret Telegram sends back in X-Telegram-Bot-Api-Secret-Token (allowed: [A-Za-z0-9_-], 1-256 chars).
 
-    `PB_WEBHOOK_SECRET` when set, otherwise derived deterministically from the bot token, so no extra
-    configuration is needed and the secret is stable across restarts and deploys.
+    `PB_WEBHOOK_SECRET` when set, otherwise derived deterministically from the bot token (HMAC-SHA256
+    with a fixed label), so the secret is stable across restarts and deploys: the webhook is registered
+    with this same value on every start.
     """
     if configured_secret:
         return configured_secret
-    return hashlib.sha256(bot_token.encode()).hexdigest()
+    return hmac.new(
+        bot_token.encode(), WEBHOOK_SECRET_LABEL, hashlib.sha256
+    ).hexdigest()
+
+
+def check_secrets(configured_webhook_secret, configured_jobs_secret):
+    """Startup notes about the optional secrets (never logs a value)."""
+    if not configured_webhook_secret:
+        logger.warning(
+            "PB_WEBHOOK_SECRET is not set: the webhook secret is derived from the bot token. "
+            "Setting PB_WEBHOOK_SECRET is recommended."
+        )
+    if configured_jobs_secret and not jobs_secret_is_usable(configured_jobs_secret):
+        logger.error(
+            "PB_JOBS_SECRET is shorter than %d characters: the jobs endpoints are disabled.",
+            MIN_JOBS_SECRET_LENGTH,
+        )
 
 
 async def log_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -46,6 +71,8 @@ def configure_logging():
         level=logging.INFO,
     )
     # httpx logs every request URL at INFO, and Bot API URLs contain the bot token (/bot<token>/...).
+    # httpcore sits under httpx: keep it at WARNING too.
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
@@ -75,6 +102,7 @@ def main():
     if env == "local":
         build_application().run_polling()
     else:
+        check_secrets(webhook_secret, jobs_secret)
         secret = compute_webhook_secret(token, webhook_secret)
         asyncio.run(run_web(build_application(webhook=True), secret))
 
