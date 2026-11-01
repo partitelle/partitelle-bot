@@ -17,7 +17,7 @@
   var data = null;          // last State from the server
   var tab = 'lista';
   var busy = false;
-  var toastTimer = null, slowTimer = null, snackOn = false;
+  var toastSeq = 0, toastTimer = null, slowTimer = null, snackOn = false;
 
   // ---- helpers ----
   function h(tag, cls, text) {
@@ -57,8 +57,10 @@
     clearTimeout(toastTimer);
     snackOn = false;
     toastEl.classList.remove('snack');
-    toastEl.textContent = text;
+    toastEl.textContent = '';
     toastEl.classList.add('show');
+    var mine = ++toastSeq;
+    requestAnimationFrame(function () { if (mine === toastSeq) toastEl.textContent = text; });
     toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, ms || 3000);
   }
   function hideSnack() {
@@ -79,12 +81,13 @@
   function showSnack(text, onUndo) {
     clearTimeout(toastTimer);
     toastEl.textContent = '';
+    var mine = ++toastSeq;
     var btn = h('button', 'snack-btn', 'annulla');
     btn.type = 'button';
     btn.setAttribute('aria-label', 'annulla lo scambio');
     btn.addEventListener('click', function () { onUndo(btn); });
-    add(toastEl, h('span', null, text), btn);
     toastEl.classList.add('snack', 'show');
+    requestAnimationFrame(function () { if (mine === toastSeq) add(toastEl, h('span', null, text), btn); });
     snackOn = true;
     snackStart();
   }
@@ -677,7 +680,7 @@
       case 'removed_maybe': msg = 'non sei più in forse.'; break;
       case 'not_in': msg = 'non eri in lista.'; break;
       case 'full': msg = fullMsg(c + may, may); break;
-      case 'name_taken': msg = "c'è già qualcuno con il tuo nome in lista."; break;
+      case 'name_taken': msg = "c’è già qualcuno con il tuo nome in lista."; break;
       default: msg = null;
     }
     if (msg && res.teams_cancelled) msg += ' · ' + TAIL_CANCELLED;
@@ -725,7 +728,7 @@
     }
     var tail = false;
     if (res.teams_cancelled) { segs.push(TAIL_CANCELLED); tail = true; }
-    else if (addedOrConfirmed && ready(m)) { segs.push(TAIL_READY); tail = true; }
+    else if ((addedOrConfirmed || (action === 'propose' && changed)) && ready(m)) { segs.push(TAIL_READY); tail = true; }
     return { text: segs.join(' · '), ms: segs.length >= 2 || tail ? 5000 : 3000, changed: changed };
   }
   function outcomeToast(res, action) {
@@ -740,8 +743,10 @@
     else if (o === 'removed_maybe') segs.push(name + ' non è più in forse.');
     else if (o === 'not_in') { segs.push(name + ' non è nella lista.'); changed = false; }
     else return null;
-    if (res.teams_cancelled) segs.push(TAIL_CANCELLED);
-    return { text: segs.join(' · '), ms: res.teams_cancelled ? 5000 : 3000, changed: changed };
+    var tail = false;
+    if (res.teams_cancelled) { segs.push(TAIL_CANCELLED); tail = true; }
+    else if (changed && ready(m)) { segs.push(TAIL_READY); tail = true; }
+    return { text: segs.join(' · '), ms: tail ? 5000 : 3000, changed: changed };
   }
 
   // ---- actions ----
@@ -844,7 +849,7 @@
         if (!r || !r.text) return;
         toast(r.text, r.ms);
         if (r.changed) hf('impactOccurred', 'light');
-        if (res.outcome === 'not_in') refresh();
+        if (res.outcome === 'not_in') refresh(function () { focusById('h-in'); });
       }
     });
   }
@@ -907,10 +912,10 @@
   });
 
   // ---- load ----
-  function refresh() { // quiet re-fetch: keeps the page and the toast
+  function refresh(after) { // quiet re-fetch: keeps the page and the toast
     post('/app/api/match', {}).then(function (r) {
       if (busy) return;
-      if (r.status === 200 && r.body && r.body.match) { data = r.body; render(); }
+      if (r.status === 200 && r.body && r.body.match) { data = r.body; render(after); }
       else if (r.status === 401) showState('expired');
       else if (r.status === 403) showState('notmember');
       else if (r.status === 404) showState('closed');

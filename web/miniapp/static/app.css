@@ -53,6 +53,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* note panel (description) */
 .noteb { background: var(--app-surface-alt); border: 1px solid var(--line); border-radius: 20px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.noteb .link { margin: -12px 0; }
 .noteb h2 { font-size: 14px; font-weight: 700; color: var(--app-text); }
 .note-text { font-size: 14px; font-weight: 500; color: var(--app-text); white-space: pre-line; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .note-text.open { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
@@ -97,7 +98,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .pair .btn { flex: 1 1 0; min-width: 0; }
 
 /* menu dialog (fallback for showPopup) */
-dialog.menu { border: 0; border-radius: 20px; padding: 16px; width: calc(100% - 32px); max-width: 358px; background: var(--app-surface); color: var(--app-text); }
+dialog.menu { border-radius: 20px; padding: 16px; width: calc(100% - 32px); max-width: 358px; background: var(--app-surface-alt); border: 1px solid var(--line); color: var(--app-text); }
 dialog.menu::backdrop { background: rgba(17,17,17,.5); }
 dialog.menu h2 { font-size: 18px; font-weight: 700; }
 dialog.menu p { color: var(--app-muted); font-size: 14px; margin: 4px 0 12px; }
@@ -112,11 +113,12 @@ dialog.menu .btn + .btn { margin-top: 8px; }
 .team .row { gap: 8px; }
 .team .row .n { width: 18px; }
 .team .rb { gap: 8px; padding: 0 6px; border-radius: 12px; }
-.team.target { background: var(--app-surface-alt); border-radius: 16px; padding: 0 4px; }
+.team.target { background: var(--app-surface-alt); border-radius: 16px; padding: 0 4px; margin: 0 -4px; }
+.team.target li:last-child { border-bottom-color: transparent; }
 .team .rb[aria-pressed="true"] { background: var(--app-accent); color: var(--app-on-accent); }
 .team .rb[aria-pressed="true"] .n { color: var(--muted-on-accent); }
 .team .rb[aria-pressed="true"] .tu { background: #111111; color: #FFFFFF; }
-.team .rb[aria-busy="true"] { opacity: .6; }
+.rb[aria-busy="true"] { opacity: .6; }
 .team .rb:focus-visible { outline-offset: 2px; }
 .note { font-size: 14px; color: var(--app-muted); }
 .panel { background: var(--app-surface-alt); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
