@@ -113,3 +113,44 @@ def decide_leave(match: Match, person: Person) -> Change:
         return Change(Outcome.NOT_IN, person.name)
     outcome = Outcome.REMOVED_MAYBE if found.is_maybe else Outcome.REMOVED
     return Change(outcome, found.name, revokes_teams=revokes)
+
+
+def decide_add(match: Match, name: str) -> Change:
+    """`aggiungi <name>`: someone else confirms a name; matched by name only, ignoring
+    case. Never revokes the teams."""
+    found = match.find(name, False)
+    if found is not None:
+        return Change(Outcome.ALREADY_IN, found.name)
+    reached = match.confirmed_count + 1 == match.target
+    maybe = match.find(name, True)
+    if maybe is not None:
+        return Change(Outcome.CONFIRMED, maybe.name, reached_target=reached)
+    if match.has_room:
+        return Change(Outcome.ADDED, name, reached_target=reached)
+    return Change(Outcome.FULL, name)
+
+
+def decide_propose(match: Match, name: str) -> Change:
+    """`proponi <name>`: someone else puts a name in as a maybe; matched by name only."""
+    revokes = match.teams is not None
+    maybe = match.find(name, True)
+    if maybe is not None:
+        return Change(Outcome.ALREADY_MAYBE, maybe.name)
+    confirmed = match.find(name, False)
+    if confirmed is not None:
+        return Change(Outcome.MOVED_TO_MAYBE, confirmed.name, revokes_teams=revokes)
+    if match.has_room:
+        return Change(Outcome.PROPOSED, name, revokes_teams=revokes)
+    return Change(Outcome.FULL, name)
+
+
+def decide_remove(match: Match, name: str) -> Change:
+    """`togli <name>`: take a name out, confirmed first; matched by name only."""
+    revokes = match.teams is not None
+    confirmed = match.find(name, False)
+    if confirmed is not None:
+        return Change(Outcome.REMOVED, confirmed.name, revokes_teams=revokes)
+    maybe = match.find(name, True)
+    if maybe is not None:
+        return Change(Outcome.REMOVED_MAYBE, maybe.name, revokes_teams=revokes)
+    return Change(Outcome.NOT_IN, name)
