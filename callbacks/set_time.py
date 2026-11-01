@@ -3,8 +3,6 @@ from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 from behaviours.edit_summary import edit_summary
 from behaviours.print_new_summary import print_new_summary
-from behaviours.remove_job_if_exists import remove_job_if_exists
-from behaviours.trigger_payment_reminder import trigger_payment_reminder
 from db import repository
 from db.repository import get_match, set_summary_message_id
 from domain.schedule import format_time, parse_time, with_time
@@ -46,8 +44,6 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     starts = with_time(match.starts, at)
     repository.set_starts(chat_id, starts)
-    remove_job_if_exists(str(chat_id), context)
-    trigger_payment_reminder(update, context, starts)
     answer = (
         "Ok, "
         + sender

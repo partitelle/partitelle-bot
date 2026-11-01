@@ -195,18 +195,13 @@ def _sends_multiline(world, who, docstring):
     world.send(who, interpolate(world, docstring))
 
 
-@when("the scheduled jobs run")
-def _jobs_run(world):
-    world.run_scheduled_jobs()
-
-
 # ---- Then: bot output ------------------------------------------------------------------------------
 
 
 def _next_call_as(world, method):
     call = world.next_call()
     assert call.method == method, f"Expected the bot to {method}, but it did: {call}"
-    # jobs address the chat with its id as a string (see reminder_steps.py): compare the id, not the type
+    # compare the id, not its type (Telegram accepts both)
     assert int(call.params["chat_id"]) == world.current_chat.id, (
         f"Wrong chat: expected {world.current_chat.id}, got {call.params['chat_id']}"
     )
@@ -444,21 +439,6 @@ def _other_match_has_no_players(world, title):
     match = world.db.fetch_match(world.chats[title].id)
     assert match is not None, f"There is no match for chat {title!r}."
     assert match["players"] is None, f"Unexpected players: {match['players']}"
-
-
-# ---- Then: how the job addresses the chat -------------------------------------------------------------
-# The job sends with `chat_id = job.name`, i.e. the chat id as a STRING, while handlers use the integer id.
-# Telegram accepts both, so the generic steps compare the id regardless of its type; this step documents
-# the actual type used by the job.
-
-
-@then("the last thing the bot did should address the chat with its id as a string")
-def _addressed_with_string_id(world):
-    call = world.telegram.calls[world.consumed - 1]
-    assert isinstance(call.params["chat_id"], str), (
-        f"Expected a string chat_id, got {call.params['chat_id']!r}"
-    )
-    assert call.params["chat_id"] == str(world.current_chat.id)
 
 
 @then("the match summary message should be the last message of the bot")

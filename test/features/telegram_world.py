@@ -1,8 +1,7 @@
 """A fake Telegram world around the REAL python-telegram-bot Application (harness only).
 
 The only things faked are the network edge (`FakeTelegram`, a `BaseRequest` that never leaves the process) and
-the clock. Handlers, application and job queue are the real python-telegram-bot objects; the job queue is
-never started, so jobs are only captured and run by `World.run_scheduled_jobs`.
+the clock. Handlers and application are the real python-telegram-bot objects.
 
 The steps are synchronous: every coroutine runs on a dedicated event loop owned by the `World`.
 """
@@ -204,8 +203,6 @@ class World:
             .updater(None)  # no polling/webhook: updates are fed by `send`
             .build()
         )
-        # the job queue is never started: jobs are only captured, `run_scheduled_jobs` runs them
-        self.job_queue = self.application.job_queue
         register_handlers(self.application)
         self.application.add_error_handler(self._record_error)
         self.run(self.application.initialize())
@@ -271,12 +268,6 @@ class World:
             self.application.bot,
         )
         self.run(self.application.process_update(update))
-        if self.errors and not self.expect_failures:
-            raise self.errors[0]
-
-    def run_scheduled_jobs(self):
-        for job in self.job_queue.jobs():
-            self.run(job.run(self.application))
         if self.errors and not self.expect_failures:
             raise self.errors[0]
 
