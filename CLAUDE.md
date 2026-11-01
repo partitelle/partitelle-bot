@@ -12,7 +12,7 @@ Telegram bot (Python 3.12, uv) that organizes casual team games among friends. R
 - Small, focused PRs. New behavior comes with feature tests (`test/features`) and strict assertions on the exact outcome, not just "does not raise".
 - Before opening a PR run what CI runs (the coverage gate is 97%):
   - `uv sync --locked`
-  - `uv run pytest test --cov=callbacks --cov=behaviours --cov=jobs --cov=db --cov=utils --cov=handlers --cov=domain --cov-fail-under=97`
+  - `uv run pytest test --cov=callbacks --cov=behaviours --cov=jobs --cov=db --cov=web --cov=utils --cov=handlers --cov=domain --cov-fail-under=97`
   - `uv run ruff check`, `uv run ruff format --check` and `uv run mypy`
   - `uv lock --check`, and regenerate `requirements.txt` when dependencies change (command in CONTRIBUTING)
 - Branches are `feat/...`, `fix/...` or `chore/...`. PR titles follow Conventional Commits (`feat`, `fix`, `chore`, `doc`, `test`); CI checks them. History is squash-merged with the PR number.

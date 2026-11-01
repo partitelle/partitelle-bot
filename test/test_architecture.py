@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PRODUCTION_DIRS = ["callbacks", "behaviours", "jobs", "utils", "domain", "conf"]
+PRODUCTION_DIRS = ["web", "callbacks", "behaviours", "jobs", "utils", "domain", "conf"]
 PRODUCTION_FILES = ["handlers.py", "main.py"]
 SQL_KEYWORDS = ["SELECT ", "INSERT INTO", "UPDATE ", "DELETE FROM"]
 

@@ -1,15 +1,16 @@
+import asyncio
 import hashlib
 import logging
 import os
 
+import uvicorn
 from telegram.ext import Application, ContextTypes
 
 from conf.conf import token, hosting_url, env, webhook_secret
 from handlers import register_handlers
+from web.app import WEBHOOK_PATH, create_app
 
 logger = logging.getLogger(__name__)
-
-WEBHOOK_PATH = "telegram"
 
 
 def compute_webhook_secret(bot_token, configured_secret=None):
@@ -28,8 +29,12 @@ async def log_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 
-def build_application(bot_token=token):
-    application = Application.builder().token(bot_token).build()
+def build_application(bot_token=token, webhook=False):
+    builder = Application.builder().token(bot_token)
+    if webhook:
+        # updates arrive through the web app (web/app.py), so there is no built-in updater
+        builder = builder.updater(None)
+    application = builder.build()
     register_handlers(application)
     application.add_error_handler(log_error)
     return application
@@ -44,20 +49,34 @@ def configure_logging():
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
+async def run_web(application, secret):
+    """Serve the web app (webhook + health) and run the application next to it."""
+    server = uvicorn.Server(
+        uvicorn.Config(
+            create_app(application, secret),
+            host="0.0.0.0",
+            port=int(os.environ.get("PORT", 5000)),
+        )
+    )
+    async with application:  # initialize / shutdown
+        await application.bot.set_webhook(
+            url=f"{hosting_url}/{WEBHOOK_PATH}", secret_token=secret
+        )
+        await application.start()  # update processing and the job queue
+        try:
+            await server.serve()  # returns on SIGTERM / SIGINT
+        finally:
+            await application.stop()
+
+
 def main():
     configure_logging()
-    application = build_application()
 
     if env == "local":
-        application.run_polling()
+        build_application().run_polling()
     else:
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 5000)),
-            url_path=WEBHOOK_PATH,
-            webhook_url=f"{hosting_url}/{WEBHOOK_PATH}",
-            secret_token=compute_webhook_secret(token, webhook_secret),
-        )
+        secret = compute_webhook_secret(token, webhook_secret)
+        asyncio.run(run_web(build_application(webhook=True), secret))
 
 
 if __name__ == "__main__":

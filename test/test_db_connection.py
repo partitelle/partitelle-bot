@@ -97,3 +97,17 @@ def test_a_missing_schema_stops_the_startup(monkeypatch, value):
     finally:
         monkeypatch.undo()
         importlib.reload(conf)
+
+
+def test_ping_succeeds_when_the_database_answers(fresh_pool):
+    assert db_connection.ping(timeout=5) is None
+
+
+def test_ping_reports_an_unreachable_database(fresh_pool, monkeypatch):
+    class Broken:
+        def connection(self, timeout):
+            raise db_connection.PoolTimeout("no free connection")
+
+    monkeypatch.setattr(db_connection, "get_pool", lambda: Broken())
+    with pytest.raises(db_connection.DatabaseUnavailable):
+        db_connection.ping(timeout=0.1)
