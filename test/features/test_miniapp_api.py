@@ -2,6 +2,7 @@
 network edge (getChatMember, editMessageText, sendMessage)."""
 
 import logging
+import re
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -491,6 +492,42 @@ def test_static_files_are_served_with_nosniff(env):
     assert response.status_code == 200
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "javascript" in response.headers["content-type"]
+
+
+def test_the_page_is_the_real_one_and_has_no_inline_code_or_style(env):
+    text = env.client.get("/app").text
+    assert "/app/static/app.js" in text
+    assert "/app/static/app.css" in text
+    assert "https://telegram.org/js/telegram-web-app.js" in text
+    assert 'href="/app/static/mark.svg"' in text
+    assert 'id="app"' in text
+    scripts = re.findall(r"<script\b[^>]*>(.*?)</script>", text, flags=re.S)
+    assert len(scripts) == 2 and all(body.strip() == "" for body in scripts)
+    assert "<style" not in text
+    assert not re.search(r"\sstyle\s*=", text)
+    assert not re.search(r"\son[a-z]+\s*=", text)
+
+
+@pytest.mark.parametrize(
+    "path, content_type",
+    [
+        ("/app/static/app.js", "text/javascript"),
+        ("/app/static/app.css", "text/css"),
+        ("/app/static/mark.svg", "image/svg+xml"),
+        ("/app/static/fonts/outfit-latin-500-normal.woff2", "font/woff2"),
+        ("/app/static/fonts/outfit-latin-700-normal.woff2", "font/woff2"),
+        ("/app/static/fonts/OFL.txt", "text/plain"),
+    ],
+)
+def test_each_static_asset_is_served_with_its_content_type(env, path, content_type):
+    response = env.client.get(path)
+    assert response.status_code == 200
+    assert response.headers["content-type"].split(";")[0] in (
+        content_type,
+        "application/javascript",  # the same file, as some systems name it
+    )
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert len(response.content) > 0
 
 
 @pytest.mark.parametrize(
