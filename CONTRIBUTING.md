@@ -24,10 +24,10 @@ uv sync
 
 This installs the python version specified in the `.python-version` file and all the dependencies (including the dev ones) in a local `.venv`.
 
-If you change the dependencies in `pyproject.toml`, run `uv lock` and regenerate `requirements.txt` (used by Render):
+If you change the dependencies in `pyproject.toml`, run `uv lock` and regenerate `requirements.txt` (used by Render, with hashes: pip installs it in hash-checking mode):
 
 ```bash
-uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt
+uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
 ```
 
 Code is formatted and linted with [ruff](https://docs.astral.sh/ruff/) (`ruff format` replaces black); CI runs both checks:
@@ -89,7 +89,7 @@ The bot uses the async API of python-telegram-bot (handlers are `async def` and 
 
 ## Dependencies
 
-[Dependabot](.github/dependabot.yml) checks `uv` and GitHub Actions dependencies every Monday. Patch and minor updates are grouped in one PR, approved by the workflow and auto-merged once CI is green (they only reach staging; prod follows with a manual `Promote to prod` run on a maintainer's OK). Major updates get their own PR and are reviewed manually. Dependabot does not touch `requirements.txt`, so the workflow regenerates it on every Dependabot PR (majors included) and CI fails if it is out of sync with `uv.lock`. Auto-merge needs the `AUTOMERGE_TOKEN` Dependabot secret (see the one-time setup below).
+[Dependabot](.github/dependabot.yml) checks `uv` and GitHub Actions dependencies every Monday. Patch and minor `uv` updates are grouped in one PR, approved by the workflow and auto-merged once CI is green (they only reach staging; prod follows with a manual `Promote to prod` run on a maintainer's OK). Major `uv` updates and all GitHub Actions updates are never approved or merged by the workflow: they are reviewed by hand. Every `uses:` in the workflows is pinned to a full commit SHA with the version in a trailing comment, and Dependabot bumps both. Dependabot does not touch `requirements.txt`, so the workflow regenerates it on every `uv` Dependabot PR (majors included) and CI fails if it is out of sync with `uv.lock`. Auto-merge needs the `AUTOMERGE_TOKEN` Dependabot secret (see the one-time setup below).
 
 ## Release & deploy flow
 
