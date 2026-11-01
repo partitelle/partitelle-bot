@@ -29,10 +29,13 @@ def pristine_logging():
     root = logging.getLogger()
     httpx_logger = logging.getLogger("httpx")
     saved_handlers, saved_level = root.handlers[:], root.level
+    httpcore_logger = logging.getLogger("httpcore")
     saved_httpx_level = httpx_logger.level
+    saved_httpcore_level = httpcore_logger.level
     root.handlers.clear()
     root.setLevel(logging.WARNING)
     httpx_logger.setLevel(logging.NOTSET)
+    httpcore_logger.setLevel(logging.NOTSET)
     try:
         yield root
     finally:
@@ -42,6 +45,7 @@ def pristine_logging():
         root.handlers[:] = saved_handlers
         root.setLevel(saved_level)
         httpx_logger.setLevel(saved_httpx_level)
+        httpcore_logger.setLevel(saved_httpcore_level)
 
 
 def test_bot_api_requests_do_not_log_the_token():
@@ -60,10 +64,17 @@ def test_bot_api_requests_do_not_log_the_token():
         logging.getLogger("main").info("probe")
 
         httpx_enabled_for_info = logging.getLogger("httpx").isEnabledFor(logging.INFO)
+        httpcore_enabled_for_debug = logging.getLogger("httpcore").isEnabledFor(
+            logging.DEBUG
+        )
+        httpcore_enabled_for_info = logging.getLogger("httpcore").isEnabledFor(
+            logging.INFO
+        )
         root_level = root.level
 
     assert response.status_code == 200
     assert [message for message in collector.messages if FAKE_TOKEN in message] == []
     assert root_level == logging.INFO
     assert not httpx_enabled_for_info
+    assert not httpcore_enabled_for_debug and not httpcore_enabled_for_info
     assert collector.messages[-1].endswith(" - main - INFO - probe")
