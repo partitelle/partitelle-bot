@@ -460,8 +460,7 @@ Feature: Match settings
       """
     And the bot should send nothing else
 
-  @known-bug @issue-89
-  Scenario: Reaching the target after /setday schedules a second payment reminder, so it is sent twice
+  Scenario: Reaching the target after /setday sends the payment reminder only once
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
     And "@mario" had sent "aggiungi anna"
@@ -484,11 +483,6 @@ Feature: Match settings
       """
     When the scheduled jobs run
     Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send plain text:
       """
       {payment reminder}
       """
