@@ -52,6 +52,16 @@ class TestNames(unittest.TestCase):
         ("[a](u) [b](v)", "a b"),
         ("two\nlines \n", "two\nlines"),
         ("Nonexistent", "Nonexistent"),
+        (r"price \*5 and \_x\_ and \`k\` and \[a]", "price *5 and _x_ and `k` and [a]"),
+        (r"\*not bold\*", "*not bold*"),
+        ("campo_nord e campo_sud", "campo_nord e campo_sud"),
+        ("a * b", "a * b"),
+        ("a * b * c", "a * b * c"),
+        ("5 * 3_", "5 * 3_"),
+        ("*bold*", "bold"),
+        ("_it_", "it"),
+        ("_it_ campo_nord *b* a * b", "it campo_nord b a * b"),
+        (r"*bold \* star* and _it_ [l_1](http://x/y_z)", "bold * star and it l_1"),
     ],
 )
 def test_plain_text(markdown, expected):

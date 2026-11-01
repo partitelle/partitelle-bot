@@ -24,12 +24,21 @@ def is_command_name(name: str) -> bool:
     return name.startswith("/")
 
 
+_ESCAPED = re.compile(r"\\([*_`\[])")
+_BOLD = re.compile(r"\*((?=\S)[^*\n]*?(?<=\S))?\*")
+_ITALIC = re.compile(r"(?<![\w_])_(?=\S)([^_\n]*?)(?<=\S)_(?![\w_])")
+_SENTINEL = 0xE000  # private use area: stands for an escaped marker while the others are stripped
+
+
 def plain_text(markdown: str | None) -> str | None:
-    """Telegram markdown without its markers: `[text](url)` becomes `text`, `*`, `_` and
-    backticks go, trailing whitespace goes. None when there is nothing to show (nothing
-    stored, empty, or the literal "None")."""
+    """Telegram markdown without its markers: `[text](url)` becomes `text`, paired `*bold*`
+    and `_italic_` lose their markers, backticks go, an escaped marker (`\\*`) becomes the
+    literal character, single markers and underscores inside words stay, trailing whitespace
+    goes. None when there is nothing to show (nothing stored, empty, or the literal "None")."""
     if markdown is None or markdown.strip() in ("", "None"):
         return None
-    text = _LINK.sub(r"\1", markdown)
-    text = re.sub(r"[*_`]", "", text).rstrip()
+    text = _ESCAPED.sub(lambda m: chr(_SENTINEL + ord(m.group(1))), markdown)
+    text = _LINK.sub(r"\1", text).replace("`", "")
+    text = _ITALIC.sub(r"\1", _BOLD.sub(lambda m: m.group(1) or "", text)).rstrip()
+    text = re.sub(r"[\ue000-\ue0ff]", lambda m: chr(ord(m.group()) - _SENTINEL), text)
     return text or None
