@@ -4,6 +4,7 @@ import asyncio
 import hmac
 import logging
 import os
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -24,10 +25,16 @@ WEBHOOK_PATH = "telegram"
 SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"
 HEALTH_CORS_ORIGIN = "https://partitelle.com"
 HEALTH_TIMEOUT = 5  # seconds, for the whole database check
+# How long /health reuses the last database result, so repeated calls do not each hit the database.
+# 20 s keeps the status page fresh enough while letting a suspended database sleep between checks.
+HEALTH_CACHE_OK = 20  # seconds
+# A failure is cached for less, so the page notices a recovery quickly.
+HEALTH_CACHE_FAILED = 5  # seconds
 
 DatabaseCheck = Callable[[], Awaitable[None]]
 ReminderSender = Callable[[Any, datetime], Awaitable[dict[str, int]]]
 Clock = Callable[[], datetime]
+MonotonicClock = Callable[[], float]
 
 
 def utc_now() -> datetime:
@@ -58,11 +65,35 @@ def create_app(
     jobs_secret: str | None = None,
     send_reminders: ReminderSender = send_due_reminders,
     now: Clock = utc_now,
+    monotonic: MonotonicClock = time.monotonic,
 ) -> Starlette:
     """Build the web app. `application` receives the updates, `secret` guards the webhook.
 
     `jobs_secret` guards the jobs endpoints; when unset or empty they are disabled (404).
+    `monotonic` is the clock of the health cache (injectable in tests).
     """
+    health_lock = asyncio.Lock()
+    health_cache: tuple[float, bool] | None = None  # (expires at, database is up)
+
+    async def database_is_up() -> bool:
+        """The last database result while fresh, otherwise one new check shared by concurrent callers."""
+        nonlocal health_cache
+        if health_cache is not None and monotonic() < health_cache[0]:
+            return health_cache[1]
+        async with health_lock:
+            # another request may have refreshed the result while this one waited
+            if health_cache is not None and monotonic() < health_cache[0]:
+                return health_cache[1]
+            try:
+                await check()
+                up = True
+            except Exception:
+                # the body never carries the error text; the log has no error text either
+                logger.warning("Health check: the database is unavailable")
+                up = False
+            ttl = HEALTH_CACHE_OK if up else HEALTH_CACHE_FAILED
+            health_cache = (monotonic() + ttl, up)
+            return up
 
     async def telegram(request: Request) -> Response:
         received = request.headers.get(SECRET_HEADER, "")
@@ -79,12 +110,9 @@ def create_app(
         return Response(status_code=200)
 
     async def health(request: Request) -> Response:
-        try:
-            await check()
+        if await database_is_up():
             database, status_code, status = "ok", 200, "ok"
-        except Exception:
-            # the body never carries the error text; the log has the type only
-            logger.warning("Health check: the database is unavailable")
+        else:
             database, status_code, status = "unavailable", 503, "degraded"
         body = {
             "status": status,
