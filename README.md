@@ -103,6 +103,7 @@ Use `docker compose down -v` to also drop the local data.
 | PB_DB_USER | PostgreSQL user |
 | PB_DB_PASSWORD | PostgreSQL password |
 | PB_DB_PORT | PostgreSQL port (also the host port published by docker compose) |
+| PB_DB_SSLMODE | optional: libpq `sslmode` of every database connection, default `require`; set `disable` for the local docker compose database (already in `default.env`) |
 
 ## Sponsorships
 
