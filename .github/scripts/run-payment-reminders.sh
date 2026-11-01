@@ -44,9 +44,10 @@ for attempt in 1 2 3; do
     --header "Authorization: Bearer ${JOBS_SECRET}" "${base_url}/jobs/payment-reminders" || true)"
   case "$status" in
     2*)
-      echo "Payment reminders done (HTTP ${status}): $(cat "$body")"
+      counts="$(jq -r '"sent=\(.sent // "?") skipped=\(.skipped // "?") failed=\(.failed // "?")"' "$body" 2>/dev/null || echo "counts unavailable")"
+      echo "Payment reminders done (HTTP ${status}): ${counts}"
       if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-        { echo "### Payment reminders"; echo; echo '```json'; cat "$body"; echo; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+        { echo "### Payment reminders"; echo; echo "HTTP ${status}: ${counts}"; } >>"$GITHUB_STEP_SUMMARY"
       fi
       exit 0
       ;;

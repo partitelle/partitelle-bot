@@ -1,11 +1,11 @@
 name: Payment reminders
 
 # Wakes the bot (free host, may be asleep) and runs the daily payment reminders:
-# POST /jobs/payment-reminders, authenticated with the secret in the Actions secrets.
+# POST /jobs/payment-reminders, authenticated with the secret held in the production-jobs environment (prod) or the repo Actions secrets (test).
 # Scheduled runs always target prod; `workflow_dispatch` can also target the test bot.
 # The cron is UTC: 08:17 UTC is 09:17 in Rome in winter and 10:17 in summer, after the reminder window
 # (which ends at 08:00 Europe/Rome) and at an off-peak minute.
-# Until the secret is configured the run only prints a warning and passes.
+# A missing secret fails the run.
 # A failure shows up as the usual failed-workflow email.
 on:
   schedule:
@@ -33,6 +33,7 @@ jobs:
     name: payment-reminders
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: production-jobs
     env:
       TARGET: ${{ inputs.target || 'prod' }}
       BASE_URL: ${{ (inputs.target || 'prod') == 'test' && 'https://partitelle-bot-test.onrender.com' || 'https://partitelle-bot.onrender.com' }}
@@ -42,7 +43,7 @@ jobs:
       - name: Run payment reminders
         run: |
           if [ -z "$JOBS_SECRET" ]; then
-            echo "::warning::The job secret for ${TARGET} is not configured yet (JOBS_SECRET_${TARGET^^} in the Actions secrets): skipping the payment reminders."
-            exit 0
+            echo "::error::The job secret for ${TARGET} is not configured (JOBS_SECRET_${TARGET^^}): the payment reminders did not run."
+            exit 1
           fi
           .github/scripts/run-payment-reminders.sh "$BASE_URL"

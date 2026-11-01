@@ -104,6 +104,8 @@ The bot uses the async API of python-telegram-bot (handlers are `async def` and 
    gh workflow run promote.yml -f version=2.0.0   # override the version
    ```
 
+   The run then waits for the maintainer's approval in the `production-deploy` environment (Actions run page > Review deployments > Approve), including for a dry run.
+
 What "Promote to prod" does:
 
 - Waits (up to 30 minutes) for any CI run in progress on `main`, so it can be pressed right after a merge.
@@ -118,7 +120,8 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 ### One-time setup (owner)
 
 - Render: turn OFF auto-deploy on both services and set `PYTHON_VERSION=3.12.12` (it must match `.python-version`).
-- Secrets: `RENDER_SERVICE_ID`, `RENDER_API_KEY`, `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
+- Environment `production-deploy` (required reviewer: the maintainer; deployment branches: `main` only) with the secrets `RENDER_SERVICE_ID` and `RENDER_API_KEY` (prod).
+- Repo Actions secrets (staging): `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
 - Secret `AUTOMERGE_TOKEN` (Dependabot secret, not an Actions one): fine-grained PAT limited to this repo with `Contents`, `Pull requests` and `Workflows` read and write (`Workflows` is needed to merge GitHub Actions bumps and push to their branches), no expiration, used by `dependabot-auto-merge.yml`. It is a PAT because merges made with `GITHUB_TOKEN` do not trigger the `push` workflow on `main`, so staging would not be deployed. The workflow also approves patch and minor Dependabot PRs with it, so the token owner must be a code owner (`.github/CODEOWNERS`) and those approvals show under their account.
 - Branch protection on `main` requires branches to be up to date, so when `main` moves a maintainer presses "Update branch" on an open Dependabot PR; the approval stays (stale reviews are not dismissed) and auto-merge completes once the checks pass again.
 
@@ -126,9 +129,9 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 
 `.github/workflows/payment-reminder.yml` runs the daily payment reminders. It is the only scheduled workflow besides Dependabot. It runs at 08:17 UTC (09:17 in Rome in winter, 10:17 in summer, after the reminder window that ends at 08:00 Rome time) and always targets prod; a manual run (Actions > "Payment reminders" > Run workflow, or `gh workflow run payment-reminder.yml -f target=test`) can also target the test bot.
 
-`.github/scripts/run-payment-reminders.sh <base-url>` wakes the host (`GET /health` every 20 s, up to 5 minutes, until 200), then calls `POST /jobs/payment-reminders` with `Authorization: Bearer <secret>`. It retries up to 3 times on 503 or no answer, prints the `sent`/`skipped`/`failed` counts (also in the run summary) and fails on any other non-2xx status. A 404 means the host has no `PB_JOBS_SECRET`.
+`.github/scripts/run-payment-reminders.sh <base-url>` wakes the host (`GET /health` every 20 s, up to 5 minutes, until 200), then calls `POST /jobs/payment-reminders` with `Authorization: Bearer <secret>`. It retries up to 3 times on 503 or no answer, prints only the HTTP status and the `sent`/`skipped`/`failed` counts (also in the run summary), never the response body, and fails on any other non-2xx status. A 404 means the host has no `PB_JOBS_SECRET`.
 
-Setup (owner): generate a long random value per environment and set it both as the host env var `PB_JOBS_SECRET` (Render, prod and test services) and as the repo Actions secret `JOBS_SECRET_PROD` / `JOBS_SECRET_TEST` (same value as the matching host). Until a secret is set, the workflow prints a warning and passes.
+Setup (owner): generate a long random value per environment and set it both as the host env var `PB_JOBS_SECRET` (Render, prod and test services) and as the secret `JOBS_SECRET_PROD` in the `production-jobs` environment (`main` only, no reviewer) or the repo Actions secret `JOBS_SECRET_TEST` (same value as the matching host). If the secret is missing the run fails.
 
 ## License
 
