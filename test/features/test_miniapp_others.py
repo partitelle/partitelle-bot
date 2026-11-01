@@ -61,8 +61,14 @@ def normalised(calls, chat_id, token):
     return out
 
 
-def run_parity(env, players, chat_text, body, *, teams=None, target=None, seed=1):
-    """Runs `chat_text` in the twin chat and `body` in the Env's chat, both set up the same."""
+def run_parity(
+    env, players, chat_text, body, *, teams=None, target=None, seed=1, actor=None
+):
+    """Runs `chat_text` in the twin chat and `body` in the Env's chat, both set up the same.
+
+    The Mini App side must be the chat's calls, plus, when `actor` is given, exactly one extra
+    leading plain-text message with that text (asserted here, then taken off the returned calls).
+    Without `actor` there must be no extra call at all."""
     twin = chat_twin(env)
     for chat_id in (twin.id, env.chat.id):
         if target is not None:
@@ -84,6 +90,11 @@ def run_parity(env, players, chat_text, body, *, teams=None, target=None, seed=1
 
     assert response.status_code == 200
     assert chat_calls, "the chat did nothing: the test proves nothing"
+    if actor is not None:
+        first, *rest = app_calls
+        assert first.method == "send_message"
+        assert first.params == {"chat_id": env.chat.id, "text": actor}  # no parse_mode
+        app_calls = rest
     twin_token = get_or_create_miniapp_token(twin.id)
     assert normalised(app_calls, env.chat.id, env.token) == normalised(
         chat_calls, twin.id, twin_token
@@ -153,6 +164,7 @@ def test_parity_add_with_mixed_outcomes(env):
         [("luca", True), ("giulia", False)],
         "aggiungi Luca, marco, giulia, marco",
         {"action": "add", "text": "Luca, marco, giulia, marco"},
+        actor="@anna_b ha aggiunto marco\n@anna_b ha confermato luca",
     )
     assert without_state(answer) == {
         "changes": [
@@ -194,6 +206,7 @@ def test_parity_add_reaching_the_target_and_then_full(env):
         ALL_FOUR[:3],
         "aggiungi d, e",
         {"action": "add", "text": "d, e"},
+        actor="@anna_b ha aggiunto d",
     )
     assert answer["reached_target"] is True
     assert [c.method for c in calls] == [
@@ -216,6 +229,7 @@ def test_parity_propose_moving_a_confirmed_person_cancels_the_teams(env):
         "proponi a",
         {"action": "propose", "text": "a"},
         teams=(["a", "b"], ["c", "d"]),
+        actor="@anna_b ha spostato in forse a",
     )
     assert without_state(answer) == {
         "changes": [{"name": "a", "outcome": "moved_to_maybe"}],
@@ -233,6 +247,7 @@ def test_parity_propose_new_names_and_full(env):
         ALL_FOUR[:2] + [("c", True)],
         "proponi x, c, y",
         {"action": "propose", "text": "x, c, y"},
+        actor="@anna_b ha messo in forse x",
     )
     assert [c["outcome"] for c in answer["changes"]] == [
         "proposed",
@@ -262,6 +277,7 @@ def test_parity_remove_a_confirmed_person(env):
         [("luca", False), ("b", False)],
         "togli Luca",
         {"action": "remove", "name": "Luca"},
+        actor="@anna_b ha tolto luca",
     )
     assert without_state(answer) == {"outcome": "removed", "teams_cancelled": False}
     assert texts(calls)[0] == "Che vergogna, luca"
@@ -275,6 +291,7 @@ def test_parity_remove_a_confirmed_person_with_teams(env):
         "togli a",
         {"action": "remove", "name": "a"},
         teams=(["a", "b"], ["c", "d"]),
+        actor="@anna_b ha tolto a",
     )
     assert answer["teams_cancelled"] is True
     assert texts(calls)[:2] == ["Che vergogna, a", "*SQUADRE ANNULLATE*"]
@@ -286,6 +303,7 @@ def test_parity_remove_a_maybe_person(env):
         [("luca", True)],
         "togli luca",
         {"action": "remove", "name": "luca"},
+        actor="@anna_b ha tolto luca",
     )
     assert without_state(answer) == {
         "outcome": "removed_maybe",
@@ -311,6 +329,7 @@ def test_remove_escapes_the_name_like_the_chat(env):
         [("a_b*", False)],
         "togli a_b*",
         {"action": "remove", "name": "a_b*"},
+        actor="@anna_b ha tolto a_b*",
     )
     assert texts(calls)[0] == "Che vergogna, a\\_b\\*"
 
@@ -325,6 +344,7 @@ def test_parity_swap(env):
         "scambia A con c",
         {"action": "swap", "x": " A ", "y": "c"},
         teams=(["a", "b"], ["c", "d"]),
+        actor="@anna_b ha scambiato a con c",
     )
     assert without_state(answer) == {"outcome": "swapped"}
     assert texts(calls) == ["Perfetto, ho scambiato a con c"]
@@ -661,7 +681,35 @@ OTHER = "pancrazio"
 
 
 def test_a_failing_reply_is_logged_by_type_and_the_action_still_succeeds(env, caplog):
+    env.db.set_players(env.chat.id, [(NAME, False, None)])  # nobody to attribute
     env.world.telegram.fail_next("send_message", f"{NAME} not found")
+    with caplog.at_level(logging.WARNING):
+        response = env.client.post(
+            "/app/api/action",
+            json={"action": "add", "text": f"{NAME}, {OTHER}"},
+            headers=env.auth(),
+        )
+    assert response.status_code == 200
+    assert response.json()["changes"] == [
+        {"name": NAME, "outcome": "already_in"},
+        {"name": OTHER, "outcome": "added"},
+    ]
+    assert env.players() == [(NAME, False, None), (OTHER, False, None)]
+    assert [c.method for c in env.calls()] == [
+        "send_message",
+        "send_message",
+        "edit_message_text",
+        "pin_chat_message",
+    ]
+    assert [r.getMessage() for r in caplog.records] == [
+        "Mini app: could not update the group: BadRequest"
+    ]
+
+
+def test_a_failing_attribution_line_is_logged_by_type_and_the_reply_still_goes_out(
+    env, caplog
+):
+    env.world.telegram.fail_next("send_message", f"{NAME} {OTHER} not found")
     with caplog.at_level(logging.WARNING):
         response = env.client.post(
             "/app/api/action",
@@ -671,15 +719,28 @@ def test_a_failing_reply_is_logged_by_type_and_the_action_still_succeeds(env, ca
     assert response.status_code == 200
     assert response.json()["changes"] == [{"name": NAME, "outcome": "added"}]
     assert env.players() == [(NAME, False, None)]
-    # the summary is still refreshed
-    assert [c.method for c in env.calls()] == [
+    calls = env.calls()  # the failed line is recorded, then the reply and the summary
+    assert [c.method for c in calls] == [
+        "send_message",
         "send_message",
         "edit_message_text",
         "pin_chat_message",
     ]
+    assert calls[0].failed is True
+    assert calls[0].params == {
+        "chat_id": env.chat.id,
+        "text": f"@anna_b ha aggiunto {NAME}",
+    }
+    assert texts(calls)[1] == f"Ok, aggiungo {NAME}"
+    assert calls[1].params["parse_mode"] == "markdown"
     assert [r.getMessage() for r in caplog.records] == [
         "Mini app: could not update the group: BadRequest"
     ]
+    logged = "\n".join(
+        f"{r.name} {r.getMessage()} {r.exc_text} {r.args}" for r in caplog.records
+    )
+    for secret in (NAME, OTHER, "anna_b", "Anna"):
+        assert secret not in logged
 
 
 def test_no_name_reaches_the_logs_when_telegram_fails(
@@ -844,3 +905,195 @@ def test_a_match_stopped_right_after_a_self_action_is_closed_like_the_others(
         env.chat.id
     ]  # the read right after the write, nothing is announced
     assert env.calls() == []
+
+
+# ---- who acted on others: one plain-text line, before the reply ---------------------------------------
+
+
+def post(env, body, person=None):
+    response = env.client.post("/app/api/action", json=body, headers=env.auth(person))
+    assert response.status_code == 200
+    return response
+
+
+def first_text(env):
+    """The calls of the action: the attribution line must lead, with no parse_mode."""
+    calls = env.calls()
+    return calls, calls[0]
+
+
+def assert_line(env, expected):
+    calls, first = first_text(env)
+    assert first.method == "send_message"
+    assert first.params == {"chat_id": env.chat.id, "text": expected}
+    assert "parse_mode" not in first.params
+    assert calls[1].params["parse_mode"] == "markdown"  # the usual reply follows
+    return calls[1:]
+
+
+def assert_no_line(env, expected_reply):
+    calls = env.calls()
+    assert texts(calls) == [expected_reply]
+    assert calls[0].params["parse_mode"] == "markdown"
+
+
+def test_add_one_other_person_is_attributed(env):
+    post(env, {"action": "add", "text": "luca"})
+    assert_line(env, "@anna_b ha aggiunto luca")
+    assert texts(env.calls()) == ["@anna_b ha aggiunto luca", "Ok, aggiungo luca"]
+
+
+def test_add_several_names_are_attributed_in_one_sentence(env):
+    post(env, {"action": "add", "text": "luca, marco, giulia"})
+    assert_line(env, "@anna_b ha aggiunto luca, marco e giulia")
+
+
+def test_confirming_a_maybe_person_is_attributed(env):
+    env.db.set_players(env.chat.id, [("luca", True)])
+    post(env, {"action": "add", "text": "luca"})
+    assert_line(env, "@anna_b ha confermato luca")
+
+
+def test_proposing_new_names_is_attributed(env):
+    post(env, {"action": "propose", "text": "luca, marco"})
+    assert_line(env, "@anna_b ha messo in forse luca e marco")
+
+
+def test_moving_a_confirmed_person_to_maybe_is_attributed(env):
+    env.db.set_players(env.chat.id, [("luca", False)])
+    post(env, {"action": "propose", "text": "luca"})
+    assert_line(env, "@anna_b ha spostato in forse luca")
+
+
+def test_removing_a_confirmed_and_a_maybe_person_is_attributed(env):
+    env.db.set_players(env.chat.id, [("luca", False), ("marco", True)])
+    post(env, {"action": "remove", "name": "luca"})
+    assert_line(env, "@anna_b ha tolto luca")
+    env.world.forget_calls()
+    post(env, {"action": "remove", "name": "marco"})
+    assert_line(env, "@anna_b ha tolto marco")
+
+
+def test_a_swap_and_its_undo_are_attributed(env):
+    env.db.set_players(env.chat.id, ALL_FOUR)
+    teams_ab_cd(env.db, env.chat.id)
+    post(env, {"action": "swap", "x": "a", "y": "c"})
+    assert_line(env, "@anna_b ha scambiato a con c")
+    env.world.forget_calls()
+    post(env, {"action": "swap", "x": "c", "y": "a"})
+    assert_line(env, "@anna_b ha scambiato c con a")
+    assert list(get_match(env.chat.id).teams.black) == ["a", "b"]
+
+
+def test_a_mixed_add_names_only_who_was_added(env):
+    env.db.set_players(env.chat.id, [("luca", False), ("giulia", True)])
+    post(env, {"action": "add", "text": "luca, marco, giulia, zed"})
+    assert_line(env, "@anna_b ha aggiunto marco e zed\n@anna_b ha confermato giulia")
+
+
+def test_a_mixed_propose_has_one_sentence_per_outcome(env):
+    env.db.set_players(env.chat.id, [("luca", False), ("giulia", True)])
+    post(env, {"action": "propose", "text": "luca, marco, giulia"})
+    assert_line(
+        env, "@anna_b ha messo in forse marco\n@anna_b ha spostato in forse luca"
+    )
+
+
+def test_a_user_without_username_is_named_by_first_and_last_name(env):
+    rossi = env.world.add_user("rossi", "Anna", None, last_name="Rossi")
+    env.world.member_status[(env.chat.id, rossi.id)] = "member"
+    post(env, {"action": "add", "text": "luca"}, person=rossi)
+    assert_line(env, "Anna Rossi ha aggiunto luca")
+
+
+def test_nothing_happened_means_no_line(env):
+    env.db.set_players(env.chat.id, [("luca", False)])
+    post(env, {"action": "add", "text": "luca"})
+    assert_no_line(env, "luca è già nella lista")
+    env.world.forget_calls()
+    post(env, {"action": "remove", "name": "zed"})
+    assert_no_line(env, "zed non è nella lista. Chi dovrei togliere?")
+    env.world.forget_calls()
+    post(env, {"action": "propose", "text": "luca"})  # confirmed -> maybe: a line
+    assert env.calls()[0].params.get("parse_mode") is None
+    env.world.forget_calls()
+    post(env, {"action": "propose", "text": "luca"})  # already maybe
+    assert_no_line(env, "luca è già nella lista")
+
+
+def test_a_swap_that_did_nothing_has_no_line(env):
+    env.db.set_players(env.chat.id, ALL_FOUR)
+    teams_ab_cd(env.db, env.chat.id)
+    post(env, {"action": "swap", "x": "a", "y": "b"})
+    assert_no_line(env, "a e b sono nella stessa squadra!")
+    env.world.forget_calls()
+    post(env, {"action": "swap", "x": "a", "y": "zed"})
+    assert_no_line(env, "zed non c'è")
+
+
+def test_acting_on_your_own_name_has_no_line(env):
+    post(env, {"action": "add", "text": "@ANNA_B"})
+    assert_no_line(env, "Ok, aggiungo @anna\\_b")
+    env.world.forget_calls()
+    post(env, {"action": "propose", "text": "@anna_b"})
+    assert_no_line(env, "Va bene, metto in forse @anna\\_b")
+    env.world.forget_calls()
+    post(env, {"action": "remove", "name": "@Anna_B"})
+    assert_no_line(env, "Davvero? Ma @anna\\_b, ne sei proprio sicuro?")
+
+
+def test_adding_yourself_and_somebody_else_names_only_the_other(env):
+    post(env, {"action": "add", "text": "@anna_b, luca"})
+    assert_line(env, "@anna_b ha aggiunto luca")
+
+
+def test_swapping_yourself_has_no_line(env):
+    env.db.set_players(env.chat.id, [("@anna_b", False)] + ALL_FOUR[1:])
+    env.db.set_teams(env.chat.id, ["@anna_b", "b"], ["c", "d"])
+    post(env, {"action": "swap", "x": "@anna_b", "y": "c"})
+    assert_no_line(env, "Perfetto, ho scambiato @anna\\_b con c")
+
+
+def test_self_actions_have_no_line(env):
+    post(env, {"action": "join"})
+    assert_no_line(env, "Ok, @anna\\_b, ti aggiungo")
+    env.world.forget_calls()
+    post(env, {"action": "maybe"})
+    assert_no_line(env, "Ok, @anna\\_b, ti metto in forse")
+    env.world.forget_calls()
+    post(env, {"action": "join"})
+    assert_no_line(env, "Ok, @anna\\_b, ti confermo")
+    env.world.forget_calls()
+    post(env, {"action": "leave"})
+    assert_no_line(env, "Mamma mia... che paccaro")
+
+
+def test_the_teams_draw_has_no_line(env):
+    env.db.set_players(env.chat.id, ALL_FOUR)
+    post(env, {"action": "teams"})
+    (call,) = env.calls()
+    assert call.params["text"].startswith("*SQUADRA NERA*")
+    assert call.params["parse_mode"] == "markdown"
+
+
+def test_the_chat_never_attributes(env):
+    chat = chat_twin(env)
+    env.db.set_players(chat.id, [("luca", False)])
+    env.world.forget_calls()
+    env.world.send("anna", "togli luca", chat=chat)
+    assert texts(env.world.unconsumed()) == ["Che vergogna, luca"]
+
+
+def test_the_attribution_stores_nothing(env):
+    twin = chat_twin(env)
+    for chat_id in (twin.id, env.chat.id):
+        env.db.set_players(chat_id, [("luca", False), ("giulia", True)])
+    env.world.send("anna", "aggiungi marco, giulia", chat=twin)
+    post(env, {"action": "add", "text": "marco, giulia"})
+    assert snapshot(env.chat.id) == snapshot(twin.id)
+    assert all(user_id is None for _, _, user_id in env.players())
+    assert sorted(env.players()) == [
+        ("giulia", False, None),
+        ("luca", False, None),
+        ("marco", False, None),
+    ]
