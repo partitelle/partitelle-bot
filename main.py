@@ -6,7 +6,7 @@ import os
 import uvicorn
 from telegram.ext import Application, ContextTypes
 
-from conf.conf import token, hosting_url, env, webhook_secret
+from conf.conf import token, hosting_url, env, webhook_secret, jobs_secret
 from handlers import register_handlers
 from web.app import WEBHOOK_PATH, create_app
 
@@ -53,7 +53,7 @@ async def run_web(application, secret):
     """Serve the web app (webhook + health) and run the application next to it."""
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(application, secret),
+            create_app(application, secret, jobs_secret=jobs_secret),
             host="0.0.0.0",
             port=int(os.environ.get("PORT", 5000)),
         )

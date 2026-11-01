@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 import pytest
 from starlette.testclient import TestClient
@@ -197,3 +198,107 @@ def test_webhook_rejects_a_json_body_that_is_not_an_update(application, body):
     )
     assert response.status_code == 400
     assert application.update_queue.qsize() == 0
+
+
+JOBS_SECRET = "jobs-s3cret_value"
+JOBS_PATH = "/jobs/payment-reminders"
+NOW = datetime(2026, 11, 1, 12, 0, tzinfo=timezone.utc)
+COUNTS = {"sent": 2, "skipped": 3, "failed": 1}
+
+
+class FakeSender:
+    def __init__(self, result=COUNTS, error=None):
+        self.calls = []
+        self.result = result
+        self.error = error
+
+    async def __call__(self, bot, now):
+        self.calls.append((bot, now))
+        if self.error:
+            raise self.error
+        return self.result
+
+
+def jobs_client(application, sender, jobs_secret=JOBS_SECRET):
+    return TestClient(
+        create_app(
+            application,
+            SECRET,
+            db_up,
+            "abc1234",
+            jobs_secret=jobs_secret,
+            send_reminders=sender,
+            now=lambda: NOW,
+        )
+    )
+
+
+def bearer(value=JOBS_SECRET):
+    return {"Authorization": f"Bearer {value}"}
+
+
+@pytest.mark.parametrize("jobs_secret", [None, ""])
+def test_jobs_endpoint_is_disabled_without_a_secret(application, jobs_secret):
+    sender = FakeSender()
+    response = jobs_client(application, sender, jobs_secret).post(
+        JOBS_PATH, headers=bearer("")
+    )
+    assert response.status_code == 404
+    assert sender.calls == []
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},
+        {"Authorization": JOBS_SECRET},
+        {"Authorization": f"Basic {JOBS_SECRET}"},
+        bearer("wrong-secret"),
+        bearer(""),
+    ],
+)
+def test_jobs_endpoint_rejects_a_missing_or_wrong_secret(application, headers):
+    sender = FakeSender()
+    response = jobs_client(application, sender).post(JOBS_PATH, headers=headers)
+    assert response.status_code == 401
+    assert response.content == b""
+    assert sender.calls == []
+
+
+def test_jobs_endpoint_runs_the_reminders_and_returns_counts(application):
+    sender = FakeSender()
+    response = jobs_client(application, sender).post(JOBS_PATH, headers=bearer())
+    assert response.status_code == 200
+    assert response.json() == {"sent": 2, "skipped": 3, "failed": 1}
+    assert response.headers["Cache-Control"] == "no-store"
+    assert len(sender.calls) == 1
+    assert sender.calls[0][0] is application.bot
+    assert sender.calls[0][1] == NOW
+
+
+def test_jobs_endpoint_is_unavailable_when_the_sender_fails(application, caplog):
+    sender = FakeSender(error=DatabaseUnavailable("chat -100123 Mario Rossi"))
+    with caplog.at_level(logging.WARNING):
+        response = jobs_client(application, sender).post(JOBS_PATH, headers=bearer())
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable"}
+    assert "100123" not in response.text and "Mario" not in response.text
+    assert "DatabaseUnavailable" in caplog.text
+    assert "100123" not in caplog.text and "Mario" not in caplog.text
+
+
+def test_jobs_endpoint_accepts_post_only(application):
+    sender = FakeSender()
+    response = jobs_client(application, sender).get(JOBS_PATH, headers=bearer())
+    assert response.status_code == 405
+    assert sender.calls == []
+
+
+def test_jobs_endpoint_has_no_cors_headers(application):
+    sender = FakeSender()
+    response = jobs_client(application, sender).post(
+        JOBS_PATH, headers={**bearer(), "Origin": ORIGIN}
+    )
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+    assert "access-control-allow-methods" not in response.headers
