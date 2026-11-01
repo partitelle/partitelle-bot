@@ -2,7 +2,7 @@ name: Promote to prod
 
 # Promotes the commit currently live on staging (PartitelleBotTest) to prod (PartitelleBot).
 # Deploys it, then creates the git tag (no `v` prefix) and the GitHub release with notes generated from Conventional Commits.
-# Manual only (workflow_dispatch), run on a maintainer's OK. Staging must answer over HTTP before the prod deploy.
+# Manual only (workflow_dispatch), run on a maintainer's OK. The run then waits for approval in the production-deploy environment. Staging must answer over HTTP before the prod deploy.
 # A failure shows up as the usual failed-workflow email.
 on:
   workflow_dispatch:
@@ -29,6 +29,8 @@ jobs:
   promote:
     name: promote-partitellebot
     runs-on: ubuntu-latest
+    # Holds the prod deploy secrets; the run waits for the maintainer's approval (also for a dry run).
+    environment: production-deploy
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
