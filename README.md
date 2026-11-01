@@ -2,10 +2,10 @@
   <img src=".github/img/logo.png" alt="PartitelleBot logo" width="160">
 </p>
 <h1 align="center">PartitelleBot</h1>
-<p align="center">Telegram bot that organizes amateur football matches among friends: who is in, who is maybe, and the teams.</p>
-<p align="center"><a href="https://t.me/PartitelleBot"><img src="https://img.shields.io/badge/Telegram-PartitelleBot-blue.svg?logo=telegram" alt="PartitelleBot"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a></p>
+<p align="center">Telegram bot that organizes casual team games among friends: who is in, who is maybe, and the teams.</p>
+<p align="center"><a href="https://t.me/PartitelleBot"><img src="https://img.shields.io/badge/telegram-%40PartitelleBot-FFD21F?style=flat-square&labelColor=111111" alt="telegram: @PartitelleBot"></a> <a href="https://partitelle.com"><img src="https://img.shields.io/badge/website-partitelle.com-FFD21F?style=flat-square&labelColor=111111" alt="website: partitelle.com"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-FFD21F?style=flat-square&labelColor=111111" alt="license: AGPL-3.0"></a></p>
 
-## What it is
+## what it is
 
 PartitelleBot keeps the participant list of the weekly match in a Telegram group and updates a single summary message as people join or drop out.
 When the list is full it splits the players into two random teams, and after the match it reminds the group to pay the pitch.
@@ -13,7 +13,7 @@ The bot talks Italian; this README is in English.
 
 It is a Python 3.12 project built on the async API of [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) (v22). The bot runs on [Render](https://render.com) and stores its data in PostgreSQL on [Neon](https://neon.tech) (see `docs/neon-db.md`).
 
-## How to use it in a group
+## how to use it in a group
 
 1. Add [@PartitelleBot](https://t.me/PartitelleBot) to the group. Giving it administrator rights lets it pin its messages.
 2. Send `/start` to create the match. By default it is the next Wednesday at 20:00 (today, if it is a Wednesday and 20:00 has not passed yet), with 10 players. Change it with `/setday`, `/settime` and `/setnumber`.
@@ -40,12 +40,12 @@ CAMPO:
 
 `✅` is confirmed, `❓` is maybe, `❌` is a free slot.
 
-### Chat keywords
+### chat keywords
 
 Keywords are plain messages, not commands. The message must start exactly with the keyword, and names are matched ignoring case.
 `aggiungi`, `proponi` accept several comma-separated names (`aggiungi luca, sara`). The names are free text: they do not have to be Telegram users.
 
-| Message | Effect |
+| message | effect |
 | --- | --- |
 | `aggiungimi` | add yourself, or confirm yourself if you were maybe |
 | `aggiungi <name>` | add someone, or confirm them if they were maybe |
@@ -55,11 +55,11 @@ Keywords are plain messages, not commands. The message must start exactly with t
 | `togli <name>` | remove one person, whether confirmed or maybe |
 | `scambia <name 1> con <name 2>` | swap two players of different teams (needs teams from `/teams`) |
 
-## Commands
+## commands
 
 `/setday` and `/settime` read a human date or time and refuse anything they cannot understand.
 
-| Command | Description |
+| command | description |
 | --- | --- |
 | `/start` | create the match of the chat (does nothing if one is already active) |
 | `/setnumber <n>` | number of players, up to 40; teams need an even number. Revokes existing teams |
@@ -72,7 +72,7 @@ Keywords are plain messages, not commands. The message must start exactly with t
 | `/stop` | stop the current match; it is kept as history and `/start` can create a new one |
 | `/help` | list keywords and commands |
 
-## Development
+## development
 
 Setup, workflow and conventions are in [CONTRIBUTING.md](https://github.com/partitelle/partitelle-bot/blob/main/CONTRIBUTING.md).
 
@@ -89,7 +89,7 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) and [Docker](https://www.docker.
 The `.env` file is not loaded automatically by the code: pass it with `uv run --env-file .env` as above (or export the variables in your shell).
 Use `docker compose down -v` to also drop the local data.
 
-| Variable | Meaning |
+| variable | meaning |
 | --- | --- |
 | ENV | `local` runs the bot in polling mode, any other value uses a webhook |
 | PB_TG_TOKEN | Telegram bot token |
@@ -104,15 +104,15 @@ Use `docker compose down -v` to also drop the local data.
 | PB_DB_PASSWORD | PostgreSQL password |
 | PB_DB_PORT | PostgreSQL port (also the host port published by docker compose) |
 
-## Sponsorships
+## sponsorships
 
 Nothing mandatory, just do it if you feel like offering a coffee: tap the Sponsor button at the top, or click [here](https://paypal.me/GiovanniL891?country.x=IT&locale.x=it_IT).
 
-## Privacy
+## privacy
 
 How partitelle handles your data: [partitelle.com/privacy](https://partitelle.com/privacy).
 
-## License
+## license
 
 Released under the GNU Affero General Public License v3.0, see [LICENSE](LICENSE). Versions up to 1.6.2 were released under the GNU General Public License v3.0.
 
