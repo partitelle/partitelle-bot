@@ -2,7 +2,6 @@ from telegram import Update
 from telegram.helpers import escape_markdown
 from domain import Match, Teams, display_name
 from domain.schedule import format_day, format_time
-import random
 
 
 def get_sender_name(source: Update) -> str | None:
@@ -27,43 +26,8 @@ def get_sender_mention(source: Update) -> str | None:
     return display_name(user.username, user.first_name, user.last_name)
 
 
-def parse_swap(text):
-    """Split "scambia a con b" into ("a", "b"), or None when it is not exactly "scambia <a> con <b>"."""
-    names = text.split(None, 1)[1:]
-    parts = [part.strip() for part in f" {names[0]} ".split(" con ")] if names else []
-    if len(parts) != 2 or not all(parts):
-        return None
-    return parts[0], parts[1]
-
-
-def swap_players(teams: Teams, x: str, y: str) -> Teams:
-    if not teams.contains(x) or not teams.contains(y):
-        raise ValueError("Not allowed to swap a player who is not in the teams")
-    if teams.colour_of(x) == teams.colour_of(y):
-        raise ValueError("Not allowed to swap two players of the same team")
-    # the names as stored, whatever case the user typed
-    stored = {member.lower(): member for member in teams.members}
-    x, y = stored[x.lower()], stored[y.lower()]
-
-    def exchange(team: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(y if p == x else x if p == y else p for p in team)
-
-    return Teams(black=exchange(teams.black), white=exchange(teams.white))
-
-
-def generate_teams(names: list[str]) -> Teams:
-    black_team = random.sample(names, int(len(names) / 2))
-    white_team = [name for name in names if name not in black_team]
-    return Teams(black=tuple(black_team), white=tuple(white_team))
-
-
 def flatten_args(args):
     return " ".join(map(str, args))
-
-
-def parse_names(text):
-    """Split "a, b,,c" into ["a", "b", "c"]: comma separated, trimmed, without empty names."""
-    return [name.strip() for name in text.split(",") if name.strip()]
 
 
 def join_names(names):
@@ -71,11 +35,6 @@ def join_names(names):
     if len(names) <= 1:
         return "".join(names)
     return ", ".join(names[:-1]) + " e " + names[-1]
-
-
-def is_command_name(name):
-    """A name that looks like a /command is not a name."""
-    return name.startswith("/")
 
 
 def already_in_message(match: Match) -> str:

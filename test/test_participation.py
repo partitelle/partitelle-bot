@@ -5,9 +5,12 @@ from domain.participation import (
     Change,
     Outcome,
     Person,
+    decide_add,
     decide_join,
     decide_leave,
     decide_maybe,
+    decide_propose,
+    decide_remove,
 )
 
 TEAMS = Teams(("anna",), ("bea",))
@@ -264,3 +267,113 @@ class TestDecideWithIds(unittest.TestCase):
             decide_leave(with_ids(("@anna", 7)), Person("@anna", 9)),
             Change(Outcome.NOT_IN, "@anna"),
         )
+
+
+class TestAdd(unittest.TestCase):
+    def test_a_new_name_is_added_with_the_name_as_typed(self):
+        self.assertEqual(decide_add(match("anna"), "Bea"), Change(Outcome.ADDED, "Bea"))
+
+    def test_a_confirmed_name_is_already_in_under_its_stored_name(self):
+        self.assertEqual(
+            decide_add(match("Anna", "bea", target=2), "ANNA"),
+            Change(Outcome.ALREADY_IN, "Anna"),
+        )
+
+    def test_a_maybe_is_confirmed(self):
+        self.assertEqual(
+            decide_add(match("anna", "Bea?"), "bea"), Change(Outcome.CONFIRMED, "Bea")
+        )
+
+    def test_the_target_is_reached_by_a_new_name_or_a_confirmed_maybe(self):
+        self.assertEqual(
+            decide_add(match("a", "b", "c", target=4), "d"),
+            Change(Outcome.ADDED, "d", reached_target=True),
+        )
+        self.assertEqual(
+            decide_add(match("a", "b", "c?", target=3), "c"),
+            Change(Outcome.CONFIRMED, "c", reached_target=True),
+        )
+        self.assertFalse(decide_add(match("a", target=4), "b").reached_target)
+        self.assertFalse(
+            decide_add(match("a", "b?", "c?", target=3), "b").reached_target
+        )
+
+    def test_full_counts_the_maybes_and_never_revokes_the_teams(self):
+        m = match("a", "b?", target=2, teams=TEAMS)
+        self.assertEqual(decide_add(m, "c"), Change(Outcome.FULL, "c"))
+        m = match("a", "b?", "c", target=4, teams=TEAMS)
+        self.assertFalse(decide_add(m, "b").revokes_teams)
+        self.assertFalse(decide_add(m, "d").revokes_teams)
+
+    def test_the_telegram_user_id_is_ignored(self):
+        m = Match(1, [Participant("anna", False, 7)], target=4)
+        self.assertEqual(decide_add(m, "ANNA"), Change(Outcome.ALREADY_IN, "anna"))
+
+
+class TestPropose(unittest.TestCase):
+    def test_a_new_name_is_proposed(self):
+        self.assertEqual(
+            decide_propose(match("anna"), "Bea"), Change(Outcome.PROPOSED, "Bea")
+        )
+
+    def test_a_maybe_is_already_maybe(self):
+        self.assertEqual(
+            decide_propose(match("anna", "Bea?", teams=TEAMS), "BEA"),
+            Change(Outcome.ALREADY_MAYBE, "Bea"),
+        )
+
+    def test_a_confirmed_name_moves_to_maybe_and_revokes_the_teams(self):
+        self.assertEqual(
+            decide_propose(match("Anna", "bea", teams=TEAMS), "anna"),
+            Change(Outcome.MOVED_TO_MAYBE, "Anna", revokes_teams=True),
+        )
+        self.assertEqual(
+            decide_propose(match("Anna", "bea"), "anna"),
+            Change(Outcome.MOVED_TO_MAYBE, "Anna"),
+        )
+
+    def test_a_new_name_revokes_the_teams_when_they_exist(self):
+        self.assertEqual(
+            decide_propose(match("anna", teams=TEAMS), "carlo"),
+            Change(Outcome.PROPOSED, "carlo", revokes_teams=True),
+        )
+
+    def test_full_changes_nothing(self):
+        self.assertEqual(
+            decide_propose(match("a", "b?", target=2, teams=TEAMS), "c"),
+            Change(Outcome.FULL, "c"),
+        )
+
+
+class TestRemove(unittest.TestCase):
+    def test_a_confirmed_name_is_removed(self):
+        self.assertEqual(
+            decide_remove(match("Anna", "bea"), "ANNA"),
+            Change(Outcome.REMOVED, "Anna"),
+        )
+
+    def test_a_maybe_is_removed(self):
+        self.assertEqual(
+            decide_remove(match("anna", "Bea?"), "bea"),
+            Change(Outcome.REMOVED_MAYBE, "Bea"),
+        )
+
+    def test_removing_revokes_the_teams_when_they_exist(self):
+        self.assertEqual(
+            decide_remove(match("anna", "bea?", teams=TEAMS), "anna"),
+            Change(Outcome.REMOVED, "anna", revokes_teams=True),
+        )
+        self.assertEqual(
+            decide_remove(match("anna", "bea?", teams=TEAMS), "bea"),
+            Change(Outcome.REMOVED_MAYBE, "bea", revokes_teams=True),
+        )
+
+    def test_an_unknown_name_is_not_in_and_revokes_nothing(self):
+        self.assertEqual(
+            decide_remove(match("anna", teams=TEAMS), "Zed"),
+            Change(Outcome.NOT_IN, "Zed"),
+        )
+
+    def test_a_confirmed_row_wins_over_a_maybe_of_the_same_name(self):
+        m = Match(1, [Participant("anna", True), Participant("Anna", False)], target=4)
+        self.assertEqual(decide_remove(m, "anna"), Change(Outcome.REMOVED, "Anna"))

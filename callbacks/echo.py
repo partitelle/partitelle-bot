@@ -1,24 +1,17 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
-from behaviours.publish_change import publish_change, refresh_summary
-from db.repository import (
-    add_participant,
-    get_match,
-    remove_participant,
-    save_teams,
-    set_participant_maybe,
-)
-from domain import Outcome, Participant, Person
+from behaviours.publish_change import publish_change, publish_changes
+from db.repository import get_match
+from domain import Change, Outcome, Person
+from domain.names import is_command_name, parse_names, parse_swap
+from domain.teams import SwapOutcome
 from usecases import participation
+from usecases import teams as teams_usecase
 from utils.utils import (
-    parse_names,
     join_names,
-    is_command_name,
     already_in_message,
     get_sender_mention,
-    swap_players,
-    parse_swap,
 )
 
 SELF_ACTIONS = {
@@ -42,15 +35,22 @@ SELF_ANSWERS = {
 }
 
 
+def _names_by_outcome(
+    names: list[str], changes: list[Change]
+) -> dict[Outcome, list[str]]:
+    """The names as typed (deduplicated, in order) of each outcome."""
+    grouped: dict[Outcome, list[str]] = {outcome: [] for outcome in Outcome}
+    for name, change in zip(dict.fromkeys(names), changes):
+        grouped[change.outcome].append(name)
+    return grouped
+
+
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_message = update.message.text.lower()
     # the first word must be exactly the command: "aggiungimi pure" is just chat
     command = new_message.split(" ")[0]
     chat_id = update.message.chat_id
     answer = None
-    show_summary = True
-    reached_target = False
-    revoked_teams = False
     answer_is_escaped = False
     command_name_answer = "Un nome non può iniziare con /"
 
@@ -92,42 +92,22 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_chat.id, parse_mode="markdown", text=answer
             )
         else:
-            # target and teams are read once per message; the participants are re-read
-            # per name by the commands that take several
             target = match.target
-            teams = match.teams
+            changes: list[Change] = []
 
             if command == "aggiungi":
                 names = parse_names(new_message[len(command) :])
-                show_summary = False
                 if not names:
                     answer = "Chi dovrei aggiungere? Scrivi: aggiungi <nome>"
                 elif any(is_command_name(name) for name in names):
                     answer = command_name_answer
                 else:
-                    added, confirmed, present, full = [], [], [], []
-                    for to_be_added in dict.fromkeys(names):
-                        current = get_match(chat_id)
-                        if current.find(to_be_added, False):
-                            present.append(to_be_added)
-                            step_summary = False
-                            step_reached = False
-                        elif current.find(to_be_added, True):
-                            confirmed.append(to_be_added)
-                            set_participant_maybe(chat_id, to_be_added, False)
-                            step_summary = True
-                            step_reached = current.confirmed_count + 1 == target
-                        elif len(current.participants) < target:
-                            added.append(to_be_added)
-                            add_participant(chat_id, Participant(to_be_added))
-                            step_summary = True
-                            step_reached = current.confirmed_count + 1 == target
-                        else:
-                            full.append(to_be_added)
-                            step_summary = False
-                            step_reached = False
-                        show_summary = show_summary or step_summary
-                        reached_target = reached_target or bool(step_reached)
+                    changes = participation.add_names(chat_id, names) or []
+                    by_outcome = _names_by_outcome(names, changes)
+                    added = by_outcome[Outcome.ADDED]
+                    confirmed = by_outcome[Outcome.CONFIRMED]
+                    present = by_outcome[Outcome.ALREADY_IN]
+                    full = by_outcome[Outcome.FULL]
                     sentences = []
                     if added:
                         sentences.append("Ok, aggiungo " + join_names(added))
@@ -159,41 +139,23 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 + str(target)
                             )
                         else:
-                            sentences.append(already_in_message(current))
+                            sentences.append(already_in_message(match))
                     answer = escape_markdown(". ".join(sentences))
                     answer_is_escaped = True
 
             elif command == "proponi":
                 names = parse_names(new_message[len(command) :])
-                show_summary = False
                 if not names:
                     answer = "Chi dovrei proporre? Scrivi: proponi <nome>"
                 elif any(is_command_name(name) for name in names):
                     answer = command_name_answer
                 else:
-                    proposed, moved, present, full = [], [], [], []
-                    for to_be_added in dict.fromkeys(names):
-                        current = get_match(chat_id)
-                        if current.find(to_be_added, True):
-                            present.append(to_be_added)
-                            step_summary = False
-                            step_revoked = False
-                        elif current.find(to_be_added, False):
-                            moved.append(to_be_added)
-                            set_participant_maybe(chat_id, to_be_added, True)
-                            step_summary = True
-                            step_revoked = teams is not None
-                        elif len(current.participants) < target:
-                            proposed.append(to_be_added)
-                            add_participant(chat_id, Participant(to_be_added, True))
-                            step_summary = True
-                            step_revoked = teams is not None
-                        else:
-                            full.append(to_be_added)
-                            step_summary = False
-                            step_revoked = False
-                        show_summary = show_summary or step_summary
-                        revoked_teams = revoked_teams or step_revoked
+                    changes = participation.propose_names(chat_id, names) or []
+                    by_outcome = _names_by_outcome(names, changes)
+                    proposed = by_outcome[Outcome.PROPOSED]
+                    moved = by_outcome[Outcome.MOVED_TO_MAYBE]
+                    present = by_outcome[Outcome.ALREADY_MAYBE]
+                    full = by_outcome[Outcome.FULL]
                     sentences = []
                     if proposed:
                         sentences.append("Ok, propongo " + join_names(proposed))
@@ -217,7 +179,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 + str(target)
                             )
                         else:
-                            sentences.append(already_in_message(current))
+                            sentences.append(already_in_message(match))
                     answer = escape_markdown(". ".join(sentences))
                     answer_is_escaped = True
 
@@ -225,77 +187,46 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 to_be_removed = new_message[len(command) :].strip()
                 if not to_be_removed:
                     answer = "Chi dovrei togliere? Scrivi: togli <nome>"
-                    show_summary = False
                 elif is_command_name(to_be_removed):
                     answer = command_name_answer
-                    show_summary = False
-                elif match.find(to_be_removed, False):
-                    answer = "Che vergogna, " + to_be_removed
-                    remove_participant(chat_id, Participant(to_be_removed))
-                    show_summary = True
-                    revoked_teams = teams is not None
                 else:
-                    if match.find(to_be_removed, True):
+                    change = participation.remove_name(chat_id, to_be_removed)
+                    if change is not None:
+                        changes = [change]
+                    if change is not None and change.outcome == Outcome.REMOVED:
+                        answer = "Che vergogna, " + to_be_removed
+                    elif change is not None and change.outcome == Outcome.REMOVED_MAYBE:
                         answer = (
                             "Davvero? Ma " + to_be_removed + ", ne sei proprio sicuro?"
                         )
-                        remove_participant(chat_id, Participant(to_be_removed, True))
-                        show_summary = True
-                        revoked_teams = teams is not None
                     else:
                         answer = (
                             to_be_removed + " non è nella lista. Chi dovrei togliere?"
                         )
-                        show_summary = False
 
             elif command == "scambia":
-                show_summary = False
                 names = parse_swap(new_message)
                 if names is None:
                     answer = "Per scambiare due giocatori scrivi: scambia <nome 1> con <nome 2>"
-                elif teams is None:
-                    answer = "Per usare questa funzionalità devi prima formare delle squadre con /teams"
                 else:
                     x, y = names
-                    if not teams.contains(x):
-                        answer = x + (
+                    result = teams_usecase.swap(chat_id, x, y)
+                    if result is None or result.outcome == SwapOutcome.NO_TEAMS:
+                        answer = "Per usare questa funzionalità devi prima formare delle squadre con /teams"
+                    elif result.outcome == SwapOutcome.NOT_IN_TEAMS:
+                        answer = result.missing + (
                             " non è in nessuna squadra"
-                            if match.find(x, False)
+                            if result.missing_is_confirmed
                             else " non c'è"
                         )
-                    elif not teams.contains(y):
-                        answer = y + (
-                            " non è in nessuna squadra"
-                            if match.find(y, False)
-                            else " non c'è"
-                        )
+                    elif result.outcome == SwapOutcome.SAME_TEAM:
+                        answer = x + " e " + y + " sono nella stessa squadra!"
                     else:
-                        try:
-                            teams = swap_players(teams, x, y)
-                            save_teams(chat_id, teams)
-                            answer = "Perfetto, ho scambiato " + x + " con " + y
-                        except ValueError:
-                            answer = x + " e " + y + " sono nella stessa squadra!"
+                        answer = "Perfetto, ho scambiato " + x + " con " + y
 
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 parse_mode="markdown",
                 text=answer if answer_is_escaped else escape_markdown(answer),
             )
-
-            if revoked_teams:
-                save_teams(chat_id, None)
-                answer = "*SQUADRE ANNULLATE*"
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id, parse_mode="markdown", text=answer
-                )
-
-            if show_summary:
-                await refresh_summary(context.bot, chat_id)
-
-                if reached_target:
-                    await context.bot.send_message(
-                        chat_id=update.effective_chat.id,
-                        parse_mode="markdown",
-                        text="🚀 *SI GIOCA* 🚀 facciamo le squadre? /teams 😎",
-                    )
+            await publish_changes(context.bot, chat_id, changes)
