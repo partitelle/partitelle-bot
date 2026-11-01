@@ -302,7 +302,7 @@
     add(head, h('h2', null, 'aggiungi qualcuno'), close);
     var label = h('label', null, 'nomi'); label.htmlFor = 'add-input';
     var input = h('input', 'field');
-    input.id = 'add-input'; input.type = 'text'; input.name = 'nomi'; input.maxLength = 500;
+    input.id = 'add-input'; input.type = 'text'; input.name = 'nomi'; input.maxLength = 300;
     input.placeholder = 'es. luca, marco'; input.value = formText;
     input.setAttribute('autocapitalize', 'none'); input.setAttribute('autocomplete', 'off');
     input.setAttribute('autocorrect', 'off'); input.setAttribute('spellcheck', 'false');
