@@ -109,3 +109,13 @@ def connection() -> Iterator[Connection]:
         except (PoolTimeout, OperationalError) as error:
             raise _unavailable(error) from error
         yield conn
+
+
+def ping(timeout: float = POOL_TIMEOUT) -> None:
+    """Cheap liveness check (`SELECT 1`); raises DatabaseUnavailable when the database does not answer."""
+    pool = get_pool()
+    try:
+        with pool.connection(timeout=timeout) as conn:
+            conn.execute("SELECT 1")
+    except (PoolTimeout, OperationalError) as error:
+        raise _unavailable(error) from error

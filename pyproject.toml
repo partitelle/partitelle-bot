@@ -11,9 +11,11 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "psycopg[binary]>=3.2",
     "psycopg-pool>=3.2",
-    "python-telegram-bot[job-queue,webhooks]==22.8",
+    "python-telegram-bot[job-queue]==22.8",
     "python-dateutil==3.0.0",
     "yoyo-migrations>=9.0.0",
+    "starlette>=1.10.0",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]

@@ -94,6 +94,7 @@ Use `docker compose down -v` to also drop the local data.
 | ENV | `local` runs the bot in polling mode, any other value uses a webhook |
 | PB_TG_TOKEN | Telegram bot token |
 | PB_URL | public URL of the hosting, used for the webhook (not needed locally) |
+| PB_VERSION | optional version shown by `GET /health`; defaults to the short `RENDER_GIT_COMMIT` |
 | PB_WEBHOOK_SECRET | optional secret Telegram sends with every webhook call (`[A-Za-z0-9_-]`, 1-256 chars); when unset it is derived from `PB_TG_TOKEN` |
 | PB_DB_SCHEMA | PostgreSQL schema of the environment: `prod` or `staging` (mandatory: the bot does not start without it) |
 | PB_DB_HOST | PostgreSQL host |

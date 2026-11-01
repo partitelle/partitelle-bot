@@ -83,7 +83,7 @@ uv run python main.py
 
 With `ENV=local` the bot polls Telegram for updates: the quickest way to try a change on your machine before you open a PR.
 
-If you're running the bot on other environments (ENV != local), the bot will start a webhook listener instead: it registers `$PB_URL/telegram` with Telegram at startup (`setWebhook`) and only accepts calls carrying the secret token, `PB_WEBHOOK_SECRET` if set (optional) or a value derived from the bot token otherwise. The bot token is never part of the URL.
+If you're running the bot on other environments (ENV != local), the bot will start a web server (Starlette on uvicorn, `web/app.py`) on `$PORT` instead: it registers `$PB_URL/telegram` with Telegram at startup (`setWebhook`) and only accepts calls carrying the secret token, `PB_WEBHOOK_SECRET` if set (optional) or a value derived from the bot token otherwise. The bot token is never part of the URL. The same server answers `GET /health` (200 with `{"status", "version", "database"}`, 503 when the database is unreachable; CORS for `https://partitelle.com`). The version is `PB_VERSION`, else the first 7 characters of Render's `RENDER_GIT_COMMIT`.
 
 The bot uses the async API of python-telegram-bot (handlers are `async def` and await every bot call). The database layer is still synchronous (psycopg pool), which is fine for the current traffic.
 
