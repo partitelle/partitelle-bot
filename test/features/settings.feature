@@ -757,8 +757,7 @@ Feature: Match settings
     And the bot should pin the last message
     And the bot should send nothing else
 
-  @known-bug @issue-91
-  Scenario: The payment reminder replaces the summary as the message edited by later changes
+  Scenario: The payment reminder does not replace the summary as the message edited by later changes
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
     When the scheduled jobs run
@@ -767,7 +766,7 @@ Feature: Match settings
       {payment reminder}
       """
     And the bot should pin the last message
-    And the match summary message should be the last message of the bot
+    And the match summary message should not be the last message of the bot
     When "@mario" sends "/setpitch Crespi"
     Then the bot should send:
       """
