@@ -246,10 +246,21 @@ def miniapp_routes(
         return result
 
     async def announce(
-        chat_id: int, reply: str, changes: Sequence[Change] = ()
+        chat_id: int,
+        reply: str,
+        changes: Sequence[Change] = (),
+        actor_line: str | None = None,
     ) -> None:
         """What the group sees, in the chat's order: the reply, then the effects of the
-        changes. The write is done: a Telegram failure is only logged (by type)."""
+        changes; before them, who acted on others (plain text), if anyone. The write is
+        done: a Telegram failure is only logged (by type)."""
+        if actor_line is not None:
+            try:
+                await application.bot.send_message(chat_id=chat_id, text=actor_line)
+            except Exception as error:
+                logger.warning(
+                    "Mini app: could not update the group: %s", type(error).__name__
+                )
         try:
             await application.bot.send_message(
                 chat_id=chat_id, parse_mode="markdown", text=reply
@@ -281,7 +292,9 @@ def miniapp_routes(
             "teams_cancelled": change.revokes_teams,
         }
 
-    async def run_names(chat_id: int, action: str, text: str) -> dict[str, Any]:
+    async def run_names(
+        chat_id: int, person: Person, action: str, text: str
+    ) -> dict[str, Any]:
         names = parse_names(text.lower())
         if (
             not names
@@ -296,7 +309,9 @@ def miniapp_routes(
         else:
             changes = await write(participation.propose_names, chat_id, names)
             reply = replies.propose_reply(names, changes, before)
-        await announce(chat_id, reply, changes)
+        await announce(
+            chat_id, reply, changes, replies.actor_line(person.name, changes)
+        )
         return {
             "changes": [
                 {"name": name, "outcome": change.outcome.value}
@@ -306,25 +321,34 @@ def miniapp_routes(
             "reached_target": any(change.reached_target for change in changes),
         }
 
-    async def run_remove(chat_id: int, name: str) -> dict[str, Any]:
+    async def run_remove(chat_id: int, person: Person, name: str) -> dict[str, Any]:
         name = name.lower().strip()
         if not name or is_command_name(name):
             raise invalid_name()
         change = await write(participation.remove_name, chat_id, name)
-        await announce(chat_id, replies.remove_reply(name, change), [change])
+        await announce(
+            chat_id,
+            replies.remove_reply(name, change),
+            [change],
+            replies.actor_line(person.name, [change]),
+        )
         return {
             "outcome": change.outcome.value,
             "teams_cancelled": change.revokes_teams,
         }
 
-    async def run_swap(chat_id: int, x: str, y: str) -> dict[str, Any]:
+    async def run_swap(chat_id: int, person: Person, x: str, y: str) -> dict[str, Any]:
         x, y = x.lower().strip(), y.lower().strip()
         # parsed as the chat parses "scambia <x> con <y>": a name holding " con " is refused
         names = parse_swap(f"scambia {x} con {y}") if x and y else None
         if names is None:
             raise invalid_name()
         result = await write(teams_usecase.swap, chat_id, *names)
-        await announce(chat_id, replies.swap_reply(result))
+        await announce(
+            chat_id,
+            replies.swap_reply(result),
+            actor_line=replies.actor_line(person.name, swap=result),
+        )
         answer: dict[str, Any] = {"outcome": result.outcome.value}
         if result.outcome == SwapOutcome.NOT_IN_TEAMS:
             answer["missing"] = result.missing
@@ -344,11 +368,11 @@ def miniapp_routes(
         if action in ACTIONS:
             answer = await run_self(chat_id, person, action)
         elif action in ("add", "propose"):
-            answer = await run_names(chat_id, action, body["text"])
+            answer = await run_names(chat_id, person, action, body["text"])
         elif action == "remove":
-            answer = await run_remove(chat_id, body["name"])
+            answer = await run_remove(chat_id, person, body["name"])
         elif action == "swap":
-            answer = await run_swap(chat_id, body["x"], body["y"])
+            answer = await run_swap(chat_id, person, body["x"], body["y"])
         else:
             answer = await run_teams(chat_id)
         return {**answer, "state": await read_state(chat_id, person)}

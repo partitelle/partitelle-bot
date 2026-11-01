@@ -153,3 +153,51 @@ def teams_reply(result: TeamsResult) -> str:
         return f"Prima di poter fare le squadre, devi raggiungere {result.target} partecipanti"
     assert result.teams is not None
     return format_teams(result.teams)
+
+
+# Who acted on others from the Mini App: plain text, sent before the reply, one sentence.
+ACTOR_PREFIX = "Dalla mini app, {actor} "
+ACTOR_ADDED = "ha aggiunto {names}"
+ACTOR_CONFIRMED = "ha confermato {names}"
+ACTOR_PROPOSED = "ha proposto {names}"
+ACTOR_MOVED_TO_MAYBE = "ha messo in forse {names}"
+ACTOR_REMOVED = "ha tolto {name}"
+ACTOR_SWAPPED = "ha scambiato {x} con {y}"
+
+_ACTOR_CLAUSES = (
+    (Outcome.ADDED, ACTOR_ADDED),
+    (Outcome.CONFIRMED, ACTOR_CONFIRMED),
+    (Outcome.PROPOSED, ACTOR_PROPOSED),
+    (Outcome.MOVED_TO_MAYBE, ACTOR_MOVED_TO_MAYBE),
+)
+
+
+def actor_line(
+    actor: str,
+    changes: Sequence[Change] | None = None,
+    swap: SwapResult | None = None,
+) -> str | None:
+    """Who acted on other people, as one plain-text sentence (no markdown, nothing to
+    escape), or None when there is nothing to attribute. Only effective changes count;
+    a target with the actor's own name (case-insensitive) is the actor acting on
+    themselves. A swap is attributed when it moves at least one other person."""
+
+    def others(names: Sequence[str]) -> list[str]:
+        return [n for n in dict.fromkeys(names) if n.casefold() != actor.casefold()]
+
+    clauses = []
+    for outcome, template in _ACTOR_CLAUSES:
+        names = others([c.name for c in changes or () if c.outcome == outcome])
+        if names:
+            clauses.append(template.format(names=join_names(names)))
+    for change in changes or ():
+        if change.outcome in (Outcome.REMOVED, Outcome.REMOVED_MAYBE) and others(
+            [change.name]
+        ):
+            clauses.append(ACTOR_REMOVED.format(name=change.name))
+    if swap is not None and swap.outcome == SwapOutcome.SWAPPED:
+        if others([swap.x, swap.y]):
+            clauses.append(ACTOR_SWAPPED.format(x=swap.x, y=swap.y))
+    if not clauses:
+        return None
+    return ACTOR_PREFIX.format(actor=actor) + " e ".join(clauses)
