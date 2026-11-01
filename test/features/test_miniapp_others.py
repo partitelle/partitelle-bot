@@ -164,7 +164,7 @@ def test_parity_add_with_mixed_outcomes(env):
         [("luca", True), ("giulia", False)],
         "aggiungi Luca, marco, giulia, marco",
         {"action": "add", "text": "Luca, marco, giulia, marco"},
-        actor="@anna_b ha aggiunto marco\n@anna_b ha confermato luca",
+        actor="Dalla mini app, @anna_b ha aggiunto marco e ha confermato luca",
     )
     assert without_state(answer) == {
         "changes": [
@@ -206,7 +206,7 @@ def test_parity_add_reaching_the_target_and_then_full(env):
         ALL_FOUR[:3],
         "aggiungi d, e",
         {"action": "add", "text": "d, e"},
-        actor="@anna_b ha aggiunto d",
+        actor="Dalla mini app, @anna_b ha aggiunto d",
     )
     assert answer["reached_target"] is True
     assert [c.method for c in calls] == [
@@ -229,7 +229,7 @@ def test_parity_propose_moving_a_confirmed_person_cancels_the_teams(env):
         "proponi a",
         {"action": "propose", "text": "a"},
         teams=(["a", "b"], ["c", "d"]),
-        actor="@anna_b ha spostato in forse a",
+        actor="Dalla mini app, @anna_b ha messo in forse a",
     )
     assert without_state(answer) == {
         "changes": [{"name": "a", "outcome": "moved_to_maybe"}],
@@ -247,7 +247,7 @@ def test_parity_propose_new_names_and_full(env):
         ALL_FOUR[:2] + [("c", True)],
         "proponi x, c, y",
         {"action": "propose", "text": "x, c, y"},
-        actor="@anna_b ha messo in forse x",
+        actor="Dalla mini app, @anna_b ha proposto x",
     )
     assert [c["outcome"] for c in answer["changes"]] == [
         "proposed",
@@ -277,7 +277,7 @@ def test_parity_remove_a_confirmed_person(env):
         [("luca", False), ("b", False)],
         "togli Luca",
         {"action": "remove", "name": "Luca"},
-        actor="@anna_b ha tolto luca",
+        actor="Dalla mini app, @anna_b ha tolto luca",
     )
     assert without_state(answer) == {"outcome": "removed", "teams_cancelled": False}
     assert texts(calls)[0] == "Che vergogna, luca"
@@ -291,7 +291,7 @@ def test_parity_remove_a_confirmed_person_with_teams(env):
         "togli a",
         {"action": "remove", "name": "a"},
         teams=(["a", "b"], ["c", "d"]),
-        actor="@anna_b ha tolto a",
+        actor="Dalla mini app, @anna_b ha tolto a",
     )
     assert answer["teams_cancelled"] is True
     assert texts(calls)[:2] == ["Che vergogna, a", "*SQUADRE ANNULLATE*"]
@@ -303,7 +303,7 @@ def test_parity_remove_a_maybe_person(env):
         [("luca", True)],
         "togli luca",
         {"action": "remove", "name": "luca"},
-        actor="@anna_b ha tolto luca",
+        actor="Dalla mini app, @anna_b ha tolto luca",
     )
     assert without_state(answer) == {
         "outcome": "removed_maybe",
@@ -329,7 +329,7 @@ def test_remove_escapes_the_name_like_the_chat(env):
         [("a_b*", False)],
         "togli a_b*",
         {"action": "remove", "name": "a_b*"},
-        actor="@anna_b ha tolto a_b*",
+        actor="Dalla mini app, @anna_b ha tolto a_b*",
     )
     assert texts(calls)[0] == "Che vergogna, a\\_b\\*"
 
@@ -344,7 +344,7 @@ def test_parity_swap(env):
         "scambia A con c",
         {"action": "swap", "x": " A ", "y": "c"},
         teams=(["a", "b"], ["c", "d"]),
-        actor="@anna_b ha scambiato a con c",
+        actor="Dalla mini app, @anna_b ha scambiato a con c",
     )
     assert without_state(answer) == {"outcome": "swapped"}
     assert texts(calls) == ["Perfetto, ho scambiato a con c"]
@@ -729,7 +729,7 @@ def test_a_failing_attribution_line_is_logged_by_type_and_the_reply_still_goes_o
     assert calls[0].failed is True
     assert calls[0].params == {
         "chat_id": env.chat.id,
-        "text": f"@anna_b ha aggiunto {NAME}",
+        "text": f"Dalla mini app, @anna_b ha aggiunto {NAME}",
     }
     assert texts(calls)[1] == f"Ok, aggiungo {NAME}"
     assert calls[1].params["parse_mode"] == "markdown"
@@ -939,63 +939,68 @@ def assert_no_line(env, expected_reply):
 
 def test_add_one_other_person_is_attributed(env):
     post(env, {"action": "add", "text": "luca"})
-    assert_line(env, "@anna_b ha aggiunto luca")
-    assert texts(env.calls()) == ["@anna_b ha aggiunto luca", "Ok, aggiungo luca"]
+    assert_line(env, "Dalla mini app, @anna_b ha aggiunto luca")
+    assert texts(env.calls()) == [
+        "Dalla mini app, @anna_b ha aggiunto luca",
+        "Ok, aggiungo luca",
+    ]
 
 
 def test_add_several_names_are_attributed_in_one_sentence(env):
     post(env, {"action": "add", "text": "luca, marco, giulia"})
-    assert_line(env, "@anna_b ha aggiunto luca, marco e giulia")
+    assert_line(env, "Dalla mini app, @anna_b ha aggiunto luca, marco e giulia")
 
 
 def test_confirming_a_maybe_person_is_attributed(env):
     env.db.set_players(env.chat.id, [("luca", True)])
     post(env, {"action": "add", "text": "luca"})
-    assert_line(env, "@anna_b ha confermato luca")
+    assert_line(env, "Dalla mini app, @anna_b ha confermato luca")
 
 
 def test_proposing_new_names_is_attributed(env):
     post(env, {"action": "propose", "text": "luca, marco"})
-    assert_line(env, "@anna_b ha messo in forse luca e marco")
+    assert_line(env, "Dalla mini app, @anna_b ha proposto luca e marco")
 
 
 def test_moving_a_confirmed_person_to_maybe_is_attributed(env):
     env.db.set_players(env.chat.id, [("luca", False)])
     post(env, {"action": "propose", "text": "luca"})
-    assert_line(env, "@anna_b ha spostato in forse luca")
+    assert_line(env, "Dalla mini app, @anna_b ha messo in forse luca")
 
 
 def test_removing_a_confirmed_and_a_maybe_person_is_attributed(env):
     env.db.set_players(env.chat.id, [("luca", False), ("marco", True)])
     post(env, {"action": "remove", "name": "luca"})
-    assert_line(env, "@anna_b ha tolto luca")
+    assert_line(env, "Dalla mini app, @anna_b ha tolto luca")
     env.world.forget_calls()
     post(env, {"action": "remove", "name": "marco"})
-    assert_line(env, "@anna_b ha tolto marco")
+    assert_line(env, "Dalla mini app, @anna_b ha tolto marco")
 
 
 def test_a_swap_and_its_undo_are_attributed(env):
     env.db.set_players(env.chat.id, ALL_FOUR)
     teams_ab_cd(env.db, env.chat.id)
     post(env, {"action": "swap", "x": "a", "y": "c"})
-    assert_line(env, "@anna_b ha scambiato a con c")
+    assert_line(env, "Dalla mini app, @anna_b ha scambiato a con c")
     env.world.forget_calls()
     post(env, {"action": "swap", "x": "c", "y": "a"})
-    assert_line(env, "@anna_b ha scambiato c con a")
+    assert_line(env, "Dalla mini app, @anna_b ha scambiato c con a")
     assert list(get_match(env.chat.id).teams.black) == ["a", "b"]
 
 
 def test_a_mixed_add_names_only_who_was_added(env):
     env.db.set_players(env.chat.id, [("luca", False), ("giulia", True)])
     post(env, {"action": "add", "text": "luca, marco, giulia, zed"})
-    assert_line(env, "@anna_b ha aggiunto marco e zed\n@anna_b ha confermato giulia")
+    assert_line(
+        env, "Dalla mini app, @anna_b ha aggiunto marco e zed e ha confermato giulia"
+    )
 
 
-def test_a_mixed_propose_has_one_sentence_per_outcome(env):
+def test_a_mixed_propose_is_one_sentence(env):
     env.db.set_players(env.chat.id, [("luca", False), ("giulia", True)])
     post(env, {"action": "propose", "text": "luca, marco, giulia"})
     assert_line(
-        env, "@anna_b ha messo in forse marco\n@anna_b ha spostato in forse luca"
+        env, "Dalla mini app, @anna_b ha proposto marco e ha messo in forse luca"
     )
 
 
@@ -1003,7 +1008,7 @@ def test_a_user_without_username_is_named_by_first_and_last_name(env):
     rossi = env.world.add_user("rossi", "Anna", None, last_name="Rossi")
     env.world.member_status[(env.chat.id, rossi.id)] = "member"
     post(env, {"action": "add", "text": "luca"}, person=rossi)
-    assert_line(env, "Anna Rossi ha aggiunto luca")
+    assert_line(env, "Dalla mini app, Anna Rossi ha aggiunto luca")
 
 
 def test_nothing_happened_means_no_line(env):
@@ -1044,14 +1049,14 @@ def test_acting_on_your_own_name_has_no_line(env):
 
 def test_adding_yourself_and_somebody_else_names_only_the_other(env):
     post(env, {"action": "add", "text": "@anna_b, luca"})
-    assert_line(env, "@anna_b ha aggiunto luca")
+    assert_line(env, "Dalla mini app, @anna_b ha aggiunto luca")
 
 
-def test_swapping_yourself_has_no_line(env):
+def test_swapping_yourself_with_someone_else_is_attributed(env):
     env.db.set_players(env.chat.id, [("@anna_b", False)] + ALL_FOUR[1:])
     env.db.set_teams(env.chat.id, ["@anna_b", "b"], ["c", "d"])
     post(env, {"action": "swap", "x": "@anna_b", "y": "c"})
-    assert_no_line(env, "Perfetto, ho scambiato @anna\\_b con c")
+    assert_line(env, "Dalla mini app, @anna_b ha scambiato @anna_b con c")
 
 
 def test_self_actions_have_no_line(env):
