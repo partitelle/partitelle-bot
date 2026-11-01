@@ -103,6 +103,7 @@ Use `docker compose down -v` to also drop the local data.
 | PB_DB_USER | PostgreSQL user |
 | PB_DB_PASSWORD | PostgreSQL password |
 | PB_DB_PORT | PostgreSQL port (also the host port published by docker compose) |
+| PB_DB_MIGRATE_USER, PB_DB_MIGRATE_PASSWORD | optional: credentials used only by `python -m db.migrate`, to run the bot with a role that cannot change the schema (see [docs/neon-db.md](docs/neon-db.md)); set both or neither, default `PB_DB_USER`/`PB_DB_PASSWORD` |
 
 ## Sponsorships
 
