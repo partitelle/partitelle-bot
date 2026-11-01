@@ -54,21 +54,22 @@ def get_match(chat_id: int | str) -> Match | None:
             return None
         match_uuid, starts, target, description, pitch, summary_message_id = row
         participants = conn.execute(
-            "SELECT display_name, status, team FROM participant "
+            "SELECT display_name, status, team, telegram_user_id FROM participant "
             "WHERE match_uuid = %s ORDER BY position",
             [match_uuid],
         ).fetchall()
     return Match(
         chat_id=int(chat_id),
         participants=[
-            Participant(name, status == "maybe") for name, status, _ in participants
+            Participant(name, status == "maybe", user_id)
+            for name, status, _, user_id in participants
         ],
         starts=starts.astimezone(TIMEZONE),
         target=target,
         description=description,
         pitch=pitch,
         summary_message_id=summary_message_id,
-        teams=_teams_from(participants),
+        teams=_teams_from([row[:3] for row in participants]),
     )
 
 
@@ -113,8 +114,9 @@ def create_match(match: Match) -> None:
         for position, participant in enumerate(match.participants, start=1):
             _validate_new_participant(participant)
             conn.execute(
-                "INSERT INTO participant (match_uuid, display_name, status, position, team) "
-                "VALUES (%s, %s, %s::participant_status, %s, %s::team_colour)",
+                "INSERT INTO participant (match_uuid, display_name, status, position, team, "
+                "telegram_user_id) "
+                "VALUES (%s, %s, %s::participant_status, %s, %s::team_colour, %s)",
                 [
                     row[0],
                     participant.name,
@@ -123,6 +125,7 @@ def create_match(match: Match) -> None:
                     None
                     if participant.is_maybe
                     else colours.get(participant.name.lower()),
+                    participant.telegram_user_id,
                 ],
             )
 
@@ -198,13 +201,16 @@ def add_participant(chat_id: int | str, participant: Participant) -> None:
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         conn.execute(
-            "INSERT INTO participant (match_uuid, display_name, status, position) "
+            "INSERT INTO participant (match_uuid, display_name, status, position, "
+            "telegram_user_id) "
             "SELECT %(match)s, %(name)s, %(status)s::participant_status, "
-            "COALESCE(max(position), 0) + 1 FROM participant WHERE match_uuid = %(match)s",
+            "COALESCE(max(position), 0) + 1, %(user_id)s::bigint FROM participant "
+            "WHERE match_uuid = %(match)s",
             {
                 "match": match_uuid,
                 "name": participant.name,
                 "status": "maybe" if participant.is_maybe else "confirmed",
+                "user_id": participant.telegram_user_id,
             },
         )
 

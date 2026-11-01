@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.helpers import escape_markdown
-from domain import Match, Teams
+from domain import Match, Teams, display_name
 from domain.schedule import format_day, format_time
 import random
 
@@ -24,9 +24,7 @@ def get_sender_mention(source: Update) -> str | None:
     user = source.message.from_user
     if user is None:
         return None
-    if user.username:
-        return "@" + user.username.lower()
-    return get_sender_name(source)
+    return display_name(user.username, user.first_name, user.last_name)
 
 
 def parse_swap(text):

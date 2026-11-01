@@ -9,7 +9,7 @@ from db.repository import (
     save_teams,
     set_participant_maybe,
 )
-from domain import Outcome, Participant
+from domain import Outcome, Participant, Person
 from usecases import participation
 from utils.utils import (
     parse_names,
@@ -38,6 +38,7 @@ SELF_ANSWERS = {
     Outcome.REMOVED: "Mamma mia... che paccaro",
     Outcome.REMOVED_MAYBE: "Peccato, un po' ci avevo sperato",
     Outcome.NOT_IN: "Non eri in lista neanche prima",
+    Outcome.NAME_TAKEN: "Ma {0}, c'è già qualcuno con questo nome nella lista",
 }
 
 
@@ -65,7 +66,9 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         or command == "scambia"
     ):
         if is_self_action:
-            change = SELF_ACTIONS[new_message](chat_id, sender)
+            change = SELF_ACTIONS[new_message](
+                chat_id, Person(sender, update.message.from_user.id)
+            )
             if change is None:
                 match = None
             else:

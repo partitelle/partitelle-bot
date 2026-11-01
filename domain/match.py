@@ -2,9 +2,13 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from domain.schedule import next_start
 from utils.constants import default_message, default_target
+
+if TYPE_CHECKING:
+    from domain.participation import Person
 
 # the pitch the /bamboo command starts every match with
 BAMBOO_PITCH = (
@@ -20,6 +24,9 @@ BAMBOO_PITCH = (
 class Participant:
     name: str
     is_maybe: bool = False
+    # who the row belongs to, when the person added themselves; None for names added
+    # by someone else
+    telegram_user_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +90,34 @@ class Match:
             ):
                 return participant
         return None
+
+    def find_person(self, person: "Person") -> Participant | None:
+        """The row of a person acting on themselves, whatever its status.
+
+        The Telegram user id wins: the row stays theirs after a username change. Without
+        a match by id, the name is matched ignoring case, but a row owned by another user
+        id is someone else's (a username that changed hands).
+        """
+        if person.telegram_user_id is not None:
+            for participant in self.participants:
+                if participant.telegram_user_id == person.telegram_user_id:
+                    return participant
+        for participant in self.participants:
+            if participant.name.lower() == person.name.lower() and (
+                participant.telegram_user_id is None
+                or participant.telegram_user_id == person.telegram_user_id
+            ):
+                return participant
+        return None
+
+    def name_taken_by_other(self, person: "Person") -> bool:
+        """Whether a row with the person's name belongs to a different Telegram user."""
+        return any(
+            participant.name.lower() == person.name.lower()
+            and participant.telegram_user_id is not None
+            and participant.telegram_user_id != person.telegram_user_id
+            for participant in self.participants
+        )
 
     def confirmed_names(self) -> list[str]:
         return [p.name for p in self.participants if not p.is_maybe]
