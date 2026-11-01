@@ -725,3 +725,122 @@ def test_an_invalid_name_logs_nothing(env, caplog):
     )
     logged = "\n".join(r.getMessage() for r in caplog.records)
     assert NAME not in logged and OTHER not in logged
+
+
+# ---- stricter input and races ---------------------------------------------------------------------------
+
+UNSTORABLE = ["\x00", "\ud800"]
+UNSTORABLE_IDS = ["nul", "lone_surrogate"]
+
+
+def unstorable_bodies(bad):
+    return [
+        {"action": "add", "text": f"lu{bad}ca"},
+        {"action": "propose", "text": f"lu{bad}ca"},
+        {"action": "remove", "name": f"lu{bad}ca"},
+        {"action": "swap", "x": f"a{bad}", "y": "b"},
+        {"action": "swap", "x": "a", "y": f"{bad}b"},
+    ]
+
+
+@pytest.mark.parametrize("bad", UNSTORABLE, ids=UNSTORABLE_IDS)
+@pytest.mark.parametrize("index", range(5))
+def test_a_nul_or_unencodable_text_is_a_bad_request(env, bad, index):
+    env.db.set_players(env.chat.id, ALL_FOUR)
+    env.db.set_teams(env.chat.id, ["a", "b"], ["c", "d"])
+    body = unstorable_bodies(bad)[index]
+    # json.dumps escapes the lone surrogate as \\ud800, as a browser's JSON.stringify does
+    response = env.client.post(
+        "/app/api/action", content=json.dumps(body), headers=env.auth()
+    )
+    assert response.status_code == 400
+    assert response.json() == {"error": "bad_request"}
+    assert env.players() == [(n, m, None) for n, m in ALL_FOUR]
+    assert get_match(env.chat.id).teams is not None
+    assert env.calls() == []
+
+
+def names_text(count):
+    return ", ".join(f"n{i:02}" for i in range(count))
+
+
+def test_fifty_distinct_names_are_accepted(env):
+    response = env.client.post(
+        "/app/api/action",
+        json={"action": "add", "text": names_text(50)},
+        headers=env.auth(),
+    )
+    assert response.status_code == 200
+    assert len(response.json()["changes"]) == 50
+    assert len(env.players()) == 4  # the target is 4: the others are "full"
+
+
+@pytest.mark.parametrize("action", ["add", "propose"])
+def test_more_than_fifty_distinct_names_are_refused(env, action):
+    response = env.client.post(
+        "/app/api/action",
+        json={"action": action, "text": names_text(51)},
+        headers=env.auth(),
+    )
+    assert response.status_code == 422
+    assert response.json() == {"error": "invalid_name"}
+    assert env.players() == []
+    assert env.calls() == []
+
+
+def test_repeated_names_count_once_towards_the_cap(env):
+    text = ", ".join([names_text(50)] * 2)[:500]
+    assert len(set(text.replace(" ", "").split(","))) <= 50
+    response = env.client.post(
+        "/app/api/action",
+        json={"action": "propose", "text": text},
+        headers=env.auth(),
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("action", ["add", "propose"])
+def test_a_match_stopped_in_the_middle_of_a_batch_is_closed(env, monkeypatch, action):
+    import usecases.participation as usecase
+
+    real = usecase.get_match
+    reads = []
+
+    def vanishing(chat_id):
+        reads.append(chat_id)
+        return real(chat_id) if len(reads) <= 1 else None
+
+    monkeypatch.setattr(usecase, "get_match", vanishing)
+    response = env.client.post(
+        "/app/api/action", json={"action": action, "text": "x, y"}, headers=env.auth()
+    )
+    assert response.status_code == 404
+    assert response.json() == {"error": "match_closed"}
+    assert len(reads) == 2
+    assert env.players() == []
+    assert env.calls() == []
+
+
+@pytest.mark.parametrize("action", ["join", "maybe", "leave"])
+def test_a_match_stopped_right_after_a_self_action_is_closed_like_the_others(
+    env, monkeypatch, action
+):
+    import web.miniapp as miniapp
+
+    env.db.set_players(env.chat.id, [("@anna_b", False, env.anna.id)])
+    reads = []
+
+    def stopped(chat_id):
+        reads.append(chat_id)
+        return None
+
+    monkeypatch.setattr(miniapp, "get_match", stopped)
+    response = env.client.post(
+        "/app/api/action", json={"action": action}, headers=env.auth()
+    )
+    assert response.status_code == 404
+    assert response.json() == {"error": "match_closed"}
+    assert reads == [
+        env.chat.id
+    ]  # the read right after the write, nothing is announced
+    assert env.calls() == []

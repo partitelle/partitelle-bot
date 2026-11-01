@@ -88,7 +88,9 @@ def _run_names(
     changes = []
     for name in dict.fromkeys(names):
         match = get_match(chat_id)
-        assert match is not None  # the match was there a moment ago
+        if match is None:
+            # stopped while the batch ran (no names in the message)
+            raise LookupError("the match was stopped during the batch")
         change = decide(match, name)
         _apply(chat_id, change)
         changes.append(change)

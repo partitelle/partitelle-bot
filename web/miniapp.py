@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 AUTH_SCHEME = "tma"
 MAX_BODY = 4096  # bytes: room for 500 characters, even escaped
 MAX_TEXT = 500  # characters of a typed name or list of names
+MAX_NAMES = 50  # distinct names in one add or propose request
 ACTIONS: dict[str, Callable[[int, Person], Change | None]] = {
     "join": participation.join,
     "maybe": participation.maybe,
@@ -72,6 +73,18 @@ PAGE_HEADERS = {
 API_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
 
 Clock = Callable[[], datetime]
+
+
+def _storable(text: str) -> bool:
+    """A text the database and Telegram can take: no NUL, encodable as UTF-8 (so no lone
+    surrogate, which JSON can carry as \\ud800)."""
+    if "\x00" in text:
+        return False
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def _utc_now() -> datetime:
@@ -270,7 +283,11 @@ def miniapp_routes(
 
     async def run_names(chat_id: int, action: str, text: str) -> dict[str, Any]:
         names = parse_names(text.lower())
-        if not names or any(is_command_name(name) for name in names):
+        if (
+            not names
+            or len(set(names)) > MAX_NAMES
+            or any(is_command_name(name) for name in names)
+        ):
             raise invalid_name()
         before = await write(get_match, chat_id)
         if action == "add":
@@ -349,7 +366,9 @@ def miniapp_routes(
                 fields is not None
                 and set(body) == {"action", *fields}
                 and all(
-                    isinstance(body[f], str) and len(body[f]) <= MAX_TEXT
+                    isinstance(body[f], str)
+                    and len(body[f]) <= MAX_TEXT
+                    and _storable(body[f])
                     for f in fields
                 )
             )
