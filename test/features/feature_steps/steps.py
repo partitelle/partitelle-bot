@@ -63,6 +63,16 @@ def _user_with_last_name_without_username(world, first, last):
     world.add_user(f"{first} {last}", first, None, last)
 
 
+@given(parsers.re(r'"(?P<label>[^"]+)" changed username to "@(?P<username>[^"]+)"$'))
+def _change_username(world, label, username):
+    world.change_username(label, username)
+
+
+@given(parsers.parse('the match has the player "{name}" of another Telegram user'))
+def _match_player_of_someone_else(world, name):
+    world.db.set_players(world.current_chat.id, [(name, False, 777_000_000)])
+
+
 @given(parsers.parse('today is "{when}"'))
 def _today(freeze_time, when):
     """Freezes the clock at `when` (YYYY-MM-DD HH:MM, Europe/Rome)."""
@@ -413,6 +423,22 @@ def _match_has(world, datatable):
         if want != got
     ]
     assert not wrong, "Match differs:\n" + "\n".join(wrong)
+
+
+@then(
+    parsers.re(
+        r'the stored Telegram user id of "(?P<name>[^"]+)" should be that of "(?P<label>[^"]+)"$'
+    )
+)
+def _stored_user_id(world, name, label):
+    stored = world.db.fetch_user_ids(world.current_chat.id)
+    assert stored.get(name, "missing") == world.users[label].id, f"stored ids: {stored}"
+
+
+@then(parsers.parse('no Telegram user id should be stored for "{name}"'))
+def _no_stored_user_id(world, name):
+    stored = world.db.fetch_user_ids(world.current_chat.id)
+    assert name in stored and stored[name] is None, f"stored ids: {stored}"
 
 
 @then(parsers.re(r"the match (?P<field>description|pitch) should be:$"))

@@ -239,6 +239,10 @@ class World:
         self.users[label] = person
         return person
 
+    def change_username(self, label, username):
+        """The user keeps their id (and their label in the scenario) but gets a new handle."""
+        self.users[label].username = username
+
     # traffic ------------------------------------------------------------------------------------
     def send(self, label, text, chat=None, with_sender=True, edited=False):
         chat = chat or self.current_chat
