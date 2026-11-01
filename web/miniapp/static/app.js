@@ -216,7 +216,7 @@
     if (!hasTeams(m)) {
       var panel = h('div', 'panel');
       add(panel, h('h3', null, 'squadre non ancora fatte'),
-        h('p', null, 'quando la lista è completa, scrivete /teams nel gruppo: le squadre escono a sorte e le vedete qui.'));
+        h('p', null, 'quando la lista è completa, scrivete /teams nel gruppo: le squadre vengono sorteggiate e le vedete qui.'));
       return add(wrap, panel);
     }
     var grid = h('div', 'teams');
@@ -228,7 +228,7 @@
       add(col, title, numbered(t[1] || [], s.me.name));
       grid.appendChild(col);
     });
-    return add(wrap, grid, h('p', 'note', 'squadre fatte a sorte con /teams.'));
+    return add(wrap, grid, h('p', 'note', 'squadre sorteggiate con /teams.'));
   }
 
   function renderTabs(s, k) {
