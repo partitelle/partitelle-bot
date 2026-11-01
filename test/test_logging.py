@@ -30,6 +30,8 @@ def pristine_logging():
     httpx_logger = logging.getLogger("httpx")
     saved_handlers, saved_level = root.handlers[:], root.level
     saved_httpx_level = httpx_logger.level
+    telegram_logger = logging.getLogger("telegram")
+    saved_telegram_level = telegram_logger.level
     root.handlers.clear()
     root.setLevel(logging.WARNING)
     httpx_logger.setLevel(logging.NOTSET)
@@ -42,6 +44,7 @@ def pristine_logging():
         root.handlers[:] = saved_handlers
         root.setLevel(saved_level)
         httpx_logger.setLevel(saved_httpx_level)
+        telegram_logger.setLevel(saved_telegram_level)
 
 
 def test_bot_api_requests_do_not_log_the_token():
@@ -67,3 +70,18 @@ def test_bot_api_requests_do_not_log_the_token():
     assert root_level == logging.INFO
     assert not httpx_enabled_for_info
     assert collector.messages[-1].endswith(" - main - INFO - probe")
+
+
+def test_bot_api_call_parameters_are_not_logged_at_debug():
+    # python-telegram-bot logs the parameters of every call (user ids, names, texts) at DEBUG
+    with pristine_logging():
+        configure_logging()
+        debug_enabled = logging.getLogger("telegram.ext.ExtBot").isEnabledFor(
+            logging.DEBUG
+        )
+        logging.getLogger().setLevel(logging.DEBUG)  # even when someone lowers the root
+        debug_enabled_when_root_is_lowered = logging.getLogger(
+            "telegram.ext.ExtBot"
+        ).isEnabledFor(logging.DEBUG)
+    assert not debug_enabled
+    assert not debug_enabled_when_root_is_lowered

@@ -148,6 +148,18 @@ class FakeTelegram(BaseRequest):
                     "text": params["text"],
                 }
             )
+        if method == "get_chat_member":
+            user_id = int(params["user_id"])
+            status = self.world.member_status.get((int(params["chat_id"]), user_id))
+            if status is None:
+                status = "left"
+            member = {
+                "status": status,
+                "user": {"id": user_id, "is_bot": False, "first_name": "x"},
+            }
+            if status == "kicked":
+                member["until_date"] = 0
+            return self._ok(member)
         if method == "pin_chat_message":
             if not self.can_pin:
                 return self._reply(
@@ -180,6 +192,8 @@ class World:
     consumed_warnings: int = 0  # logged warnings already asserted (see steps.py)
     errors: list = field(default_factory=list)
     _message_ids: dict = field(default_factory=dict)
+    # (chat id, user id) -> getChatMember status, for the Mini App API tests (default: left)
+    member_status: dict = field(default_factory=dict)
     _update_id: int = 0
     clock: object = None
     texts: dict = field(

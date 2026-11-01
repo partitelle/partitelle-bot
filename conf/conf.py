@@ -19,3 +19,10 @@ if not db_schema:
 webhook_secret = os.getenv("PB_WEBHOOK_SECRET")
 # Optional secret (bearer token) for the jobs endpoints of the web app; when unset or empty they are disabled
 jobs_secret = os.getenv("PB_JOBS_SECRET")
+# Mini App (the list of a match inside Telegram). `PB_MINIAPP_SHORT_NAME` is the short name given to the
+# Mini App in BotFather; when unset or empty the feature is off (no button, no /app routes).
+miniapp_short_name = os.getenv("PB_MINIAPP_SHORT_NAME") or None
+# Optional: the bot's username for the link; when unset it is read from Telegram (`bot.username`)
+bot_username = os.getenv("PB_BOT_USERNAME") or None
+# Seconds the data Telegram hands to the Mini App stays valid
+miniapp_max_age = int(os.getenv("PB_MINIAPP_MAX_AGE") or 3600)

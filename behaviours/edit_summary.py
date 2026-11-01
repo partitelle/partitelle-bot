@@ -2,6 +2,8 @@ import logging
 
 from telegram import Bot
 
+from behaviours.miniapp_link import miniapp_markup
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +18,7 @@ async def edit_summary(
         message_id=bot_last_message_id,
         parse_mode="markdown",
         text=current_situation,
+        reply_markup=miniapp_markup(bot, chat_id),
     )
     try:
         await bot.pin_chat_message(chat_id=chat_id, message_id=bot_last_message_id)

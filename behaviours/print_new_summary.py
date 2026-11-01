@@ -3,6 +3,8 @@ import logging
 from telegram import Bot
 from telegram.helpers import escape_markdown
 
+from behaviours.miniapp_link import miniapp_markup
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,11 +15,13 @@ async def print_new_summary(current_situation, bot: Bot, chat_id: int):
         "Se la tua intenzione era, invece, di formattare il testo, ricordati di usare anche il carattere di chiusura, come in questo *esempio*."
     )
 
+    markup = miniapp_markup(bot, chat_id)
     try:
         msg = await bot.send_message(
             chat_id=chat_id,
             parse_mode="markdown",
             text=current_situation,
+            reply_markup=markup,
         )
     except Exception:
         msg = await bot.send_message(

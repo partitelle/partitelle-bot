@@ -1,6 +1,7 @@
 """Reads and writes matches: the only place that knows the SQL and how a match maps onto
 the chat, match and participant tables."""
 
+import secrets
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -302,3 +303,30 @@ def release_reminder(match_uuid: str) -> None:
             "UPDATE match SET reminder_sent_ts = NULL WHERE match_uuid = %s",
             [match_uuid],
         )
+
+
+def get_or_create_miniapp_token(chat_id: int) -> str | None:
+    """The link token of the active match of a chat, created on first use and then stable for
+    that match; None when the chat has no active match. Two concurrent first calls agree on one
+    token (the COALESCE keeps the one already stored)."""
+    with connection() as conn:
+        row = conn.execute(
+            "UPDATE match SET miniapp_token = COALESCE(miniapp_token, %s) "
+            "WHERE stopped_ts IS NULL AND chat_uuid = "
+            "(SELECT chat_uuid FROM chat WHERE telegram_chat_id = %s) "
+            "RETURNING miniapp_token",
+            [secrets.token_urlsafe(24), chat_id],
+        ).fetchone()
+    return None if row is None else str(row[0])
+
+
+def find_chat_by_miniapp_token(token: str) -> int | None:
+    """The Telegram chat id of the ACTIVE match that has this token; None for an unknown
+    token or a stopped match."""
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT c.telegram_chat_id FROM match m JOIN chat c USING (chat_uuid) "
+            "WHERE m.miniapp_token = %s AND m.stopped_ts IS NULL",
+            [token],
+        ).fetchone()
+    return None if row is None else int(row[0])

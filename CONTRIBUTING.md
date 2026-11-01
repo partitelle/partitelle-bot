@@ -85,6 +85,20 @@ With `ENV=local` the bot polls Telegram for updates: the quickest way to try a c
 
 If you're running the bot on other environments (ENV != local), the bot will start a web server (Starlette on uvicorn, `web/app.py`) on `$PORT` instead: it registers `$PB_URL/telegram` with Telegram at startup (`setWebhook`) and only accepts calls carrying the secret token, `PB_WEBHOOK_SECRET` if set (optional) or a value derived from the bot token otherwise. The bot token is never part of the URL. The same server answers `GET /health` (200 with `{"status", "version", "database"}`, 503 when the database is unreachable; CORS for `https://partitelle.com`). The version is `PB_VERSION`, else the first 7 characters of Render's `RENDER_GIT_COMMIT`.
 
+### Mini App (optional)
+
+The Mini App (the list of a match opened from the "apri la lista" button under the summary) is off unless `PB_MINIAPP_SHORT_NAME` is set. The web app then serves it under `$PB_URL/app` (page and static files) and `$PB_URL/app/api/*` (JSON API, `web/miniapp.py`); with the variable unset or empty those routes answer 404 and no button is added.
+
+| variable | meaning |
+| --- | --- |
+| `PB_MINIAPP_SHORT_NAME` | the short name of the Mini App in BotFather; turns the feature on |
+| `PB_BOT_USERNAME` | optional: the bot's username for the link; when unset the bot asks Telegram |
+| `PB_MINIAPP_MAX_AGE` | optional: seconds the data Telegram hands to the Mini App stays valid (default 3600) |
+
+One-time setup in BotFather: create the Mini App for the bot with `/newapp`, set its URL to `<PB_URL>/app` and its short name to the value of `PB_MINIAPP_SHORT_NAME`.
+
+The API trusts only the data Telegram signs for the Mini App (checked with the bot token, `web/init_data.py`), requires the user to be a member of the chat of the match, and never logs init data, names, user ids or the match token. It is rate limited in memory, per process.
+
 The bot uses the async API of python-telegram-bot (handlers are `async def` and await every bot call). The database layer is still synchronous (psycopg pool), which is fine for the current traffic.
 
 ## Dependencies
