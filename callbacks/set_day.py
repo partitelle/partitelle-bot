@@ -3,8 +3,6 @@ from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 from behaviours.edit_summary import edit_summary
 from behaviours.print_new_summary import print_new_summary
-from behaviours.remove_job_if_exists import remove_job_if_exists
-from behaviours.trigger_payment_reminder import trigger_payment_reminder
 from db import repository
 from db.repository import get_match, set_summary_message_id
 from domain.schedule import format_day, parse_day, with_day
@@ -45,8 +43,6 @@ async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     starts = with_day(match.starts, day)
     repository.set_starts(chat_id, starts)
-    remove_job_if_exists(str(chat_id), context)
-    trigger_payment_reminder(update, context, starts)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         parse_mode="markdown",

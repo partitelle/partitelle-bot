@@ -1,13 +1,8 @@
-from datetime import datetime
 from telegram import Update
 from telegram.helpers import escape_markdown
 from domain import Match, Teams
 from domain.schedule import format_day, format_time
 import random
-
-
-def compute_seconds_from_now(destination_date):
-    return destination_date.timestamp() - datetime.now().timestamp()
 
 
 def get_sender_name(source: Update) -> str | None:

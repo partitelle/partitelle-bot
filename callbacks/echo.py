@@ -3,8 +3,6 @@ from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 from behaviours.edit_summary import edit_summary
 from behaviours.print_new_summary import print_new_summary
-from behaviours.remove_job_if_exists import remove_job_if_exists
-from behaviours.trigger_payment_reminder import trigger_payment_reminder
 from db.repository import (
     add_participant,
     get_match,
@@ -303,7 +301,6 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if revoked_teams:
                 save_teams(chat_id, None)
-                remove_job_if_exists(str(chat_id), context)
                 answer = "*SQUADRE ANNULLATE*"
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id, parse_mode="markdown", text=answer
@@ -321,7 +318,6 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
 
                 if reached_target:
-                    trigger_payment_reminder(update, context, current.starts)
                     await context.bot.send_message(
                         chat_id=update.effective_chat.id,
                         parse_mode="markdown",

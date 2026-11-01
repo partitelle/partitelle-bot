@@ -1,6 +1,6 @@
 # Feature tests
 
-Behaviour-level scenarios (Gherkin, pytest-bdd) run against the REAL handlers, python-telegram-bot `Application`, job queue and a REAL Postgres. Only the Telegram network edge and the clock are faked.
+Behaviour-level scenarios (Gherkin, pytest-bdd) run against the REAL handlers, python-telegram-bot `Application` and a REAL Postgres. Only the Telegram network edge and the clock are faked.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 
 - `pg_harness.py`: the only place that knows the DB schema (`Database` helpers take and return plain test values); creates the test database if missing, rebuilds the schema with the real migrations (`db/migrate.py`), truncates it before every scenario.
 - `telegram_world.py`: `FakeTelegram` (a `telegram.request.BaseRequest`) records every outgoing Bot API call (send, edit, pin, ...) and answers with plausible JSON; an unsupported call fails the scenario. Handlers are registered through the real `register_handlers` on a real `Application`.
-- The steps are synchronous: every coroutine runs on a dedicated event loop owned by the `World` (one per scenario). `World.send` feeds a message with `application.process_update`; `World.run_scheduled_jobs` awaits the jobs captured by the (never started) job queue. `test_python_only_paths.py` holds plain pytest tests for the few paths no scenario describes.
+- The steps are synchronous: every coroutine runs on a dedicated event loop owned by the `World` (one per scenario). `World.send` feeds a message with `application.process_update`. `test_python_only_paths.py` holds plain pytest tests for the few paths no scenario describes.
 - Every call is recorded in order and each `Then the bot should ...` step consumes the next one. After each scenario (`conftest.py`) any unconsumed bot call, any recorded handler exception or any logged warning (or error) that was not asserted fails the scenario.
 - Given steps that replay messages (`had sent`, `a match was started`) or write the DB directly are setup: their bot traffic is forgotten and is not part of the expectations.
 
@@ -59,8 +59,7 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `"<user>" sends "<text>"` / `... in "<chat>"`: sends a one-line message (to the current or the given chat).
 - `"<user>" sends the message:` + docstring: same, for multi-line text.
 - `"<user>" edits a message into "<text>"`: the user edits one of their messages, which now reads `<text>` (an `edited_message` update).
-- `the scheduled jobs run`: runs every job captured by the job queue (payment reminders).
-- `the due payment reminders are sent`: runs `send_due_reminders` at the frozen clock; the counts are kept for the Then below.
+- `the due payment reminders are sent`: runs `send_due_reminders` at the frozen clock (payment reminders are sent only this way); the counts are kept for the Then below.
 
 ### Then
 - `the bot should send:` + docstring: next call is a Markdown `send_message` with exactly this text.
@@ -81,11 +80,9 @@ Any `PB_*` variable can be overridden from the environment (defaults: `test/conf
 - `the match summary message should not be the last message of the bot`: tracked summary id differs from the bot's last sent message (e.g. after a payment reminder).
 - `there should be no match for this chat` / `there should be a match for "<chat>"`: existence of the match.
 - `the match of "<chat>" should have no players`: other chat's match is empty.
-- `a payment reminder should be scheduled for "<YYYY-MM-DD HH:MM>"` / `<n> payment reminders should be scheduled for "<...>"` / `no payment reminder should be scheduled`: reminders queued for the current chat (Europe/Rome).
 - `the due reminders should count <n> sent, <n> skipped and <n> failed`: exact counts of the last run.
 - `the payment reminder of "<chat>" should be recorded as message <n> and the summary should stay message <m>`: `reminder_sent_ts` is set and the stored reminder and summary message ids are exactly these (works for stopped matches).
 - `no payment reminder should be recorded for "<chat>"`: `reminder_sent_ts` and the reminder message id are null.
-- `the last thing the bot did should address the chat with its id as a string`: documents that jobs use a string chat id.
 
 ## Determinism hooks
 

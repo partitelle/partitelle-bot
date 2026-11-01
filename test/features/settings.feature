@@ -59,10 +59,6 @@ Feature: Match settings
       """
       Prima di iniziare con le danze, avvia una partita, per farlo usa /start
       """
-    And the text "payment reminder" is:
-      """
-      Ciao bestie 😎, com'è andata la partita? C'è qualcuno che non ha ancora pagato la sua quota?
-      """
     And the text "si gioca" is:
       """
       🚀 *SI GIOCA* 🚀 facciamo le squadre? /teams 😎
@@ -460,7 +456,7 @@ Feature: Match settings
       """
     And the bot should send nothing else
 
-  Scenario: Reaching the target after /setday sends the payment reminder only once
+  Scenario: Reaching the target with /setnumber after /setday announces the match
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
     And "@mario" had sent "aggiungi anna"
@@ -481,15 +477,8 @@ Feature: Match settings
       """
       Ok, @mario! Ho impostato il numero di partecipanti a 2
       """
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
 
-  Scenario: Reaching the target with the default day schedules the payment reminder
+  Scenario: Reaching the target with /setnumber announces the match
     Given a match was started
     And "@mario" had sent "aggiungi anna"
     And "@mario" had sent "aggiungi bea"
@@ -509,15 +498,8 @@ Feature: Match settings
       """
       Ok, @mario! Ho impostato il numero di partecipanti a 2
       """
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
 
-  Scenario: Changing the target cancels the teams and the payment reminder
+  Scenario: Changing the target cancels the teams
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
     And "@mario" had sent "/setnumber 2"
@@ -550,8 +532,6 @@ Feature: Match settings
       | field  | value |
       | target | 4     |
       | teams  | (none) |
-    When the scheduled jobs run
-    Then the bot should send nothing else
 
   Scenario: Changing the target to the number of players cancels the teams and announces the match again
     Given a match was started
@@ -666,7 +646,7 @@ Feature: Match settings
       | field | value                |
       | day   | Mercoledì 28/10/2026 |
 
-  Scenario: /setday with a readable date schedules the payment reminder
+  Scenario: /setday with a readable date sets the day and shows the summary
     Given a match was started
     When "@mario" sends "/setday 25/10/2026"
     Then the bot should send:
@@ -682,39 +662,8 @@ Feature: Match settings
       {default tail}
       """
     And the bot should pin the summary
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
 
-  Scenario: /setday replaces the previous payment reminder instead of adding another one
-    Given a match was started
-    And "@mario" had sent "/setday 25/10/2026"
-    And "@mario" had sent "/setday 26/10/2026"
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
-
-  Scenario: /setday with text that is not a date keeps the previous payment reminder
-    Given a match was started
-    And "@mario" had sent "/setday 25/10/2026"
-    And "@mario" had sent "/setday sabato"
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
-
-  Scenario: /setday with a date in the past schedules no payment reminder
+  Scenario: /setday with a date in the past is accepted
     Given a match was started
     When "@mario" sends "/setday 20/10/2026"
     Then the bot should send:
@@ -730,58 +679,72 @@ Feature: Match settings
       {default tail}
       """
     And the bot should pin the summary
-    When the scheduled jobs run
-    Then the bot should send nothing else
 
-  Scenario: The day written by the bot itself is read back, so the payment reminder is scheduled
+  Scenario: /setday with today's date is accepted
     Given a match was started
-    When "@mario" sends "/settime 21:00"
+    When "@mario" sends "/setday 21/10/2026"
     Then the bot should send:
       """
-      Ok, @mario! Ho impostato l'orario della partita alle 21:00
+      Ok, @mario! Ho impostato il giorno della partita: mercoledì 21/10/2026
       """
     And the bot should send:
       """
-      *GIORNO*: Mercoledì 28/10/2026 | 21:00
+      *GIORNO*: Mercoledì 21/10/2026 | 20:00
 
       {ten empty slots}
 
       {default tail}
       """
     And the bot should pin the summary
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
     And the bot should send nothing else
+    And the match should have:
+      | field | value                |
+      | day   | Mercoledì 21/10/2026 |
 
-  Scenario: The payment reminder does not replace the summary as the message edited by later changes
+  Scenario: /setday with text that is not a date keeps the day set before
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the match summary message should not be the last message of the bot
-    When "@mario" sends "/setpitch Crespi"
+    When "@mario" sends "/setday boh"
     Then the bot should send:
       """
-      Ok, @mario! Ho aggiornato il campo!
+      Non ho capito il giorno, @mario: scrivilo come GG/MM/AAAA, per esempio /setday 25/10/2026
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field | value               |
+      | day   | Domenica 25/10/2026 |
+      | time  | 20:00               |
+
+  Scenario: /setday without argument keeps the day set before
+    Given a match was started
+    And "@mario" had sent "/setday 25/10/2026"
+    When "@mario" sends "/setday"
+    Then the bot should send:
+      """
+      Non hai inserito il giorno: scrivi /setday <giorno>
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field | value               |
+      | day   | Domenica 25/10/2026 |
+
+  Scenario: /setday on an incomplete list edits the summary and keeps the players
+    Given a match was started
+    And "@mario" had sent "/setnumber 2"
+    And "@mario" had sent "aggiungi anna"
+    When "@mario" sends "/setday 25/10/2026"
+    Then the bot should send:
+      """
+      Ok, @mario! Ho impostato il giorno della partita: domenica 25/10/2026
       """
     And the bot should edit the summary to:
       """
       *GIORNO*: Domenica 25/10/2026 | 20:00
 
-      {ten empty slots}
+      1. anna ✅
+      2. ❌
 
-      {default description}
-
-      *CAMPO*: 
-      Crespi
+      {default tail}
       """
     And the bot should pin the summary
     And the bot should send nothing else
@@ -810,7 +773,7 @@ Feature: Match settings
       | day   | Mercoledì 28/10/2026 |
       | time  | 21:30                |
 
-  Scenario: /settime schedules the payment reminder when the day is readable
+  Scenario: /settime when the day is readable sets the time and edits the summary
     Given a match was started
     And "@mario" had sent "/setday 25/10/2026"
     When "@mario" sends "/settime 21:30"
@@ -827,25 +790,49 @@ Feature: Match settings
       {default tail}
       """
     And the bot should pin the summary
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
 
-  Scenario: /settime replaces the previous payment reminder instead of adding another one
+  Scenario: /settime with a time already passed today is accepted
     Given a match was started
-    And "@mario" had sent "/setday 25/10/2026"
-    And "@mario" had sent "/settime 21:30"
-    And "@mario" had sent "/settime 22:30"
-    When the scheduled jobs run
-    Then the bot should send plain text:
+    And "@mario" had sent "/setday 21/10/2026"
+    When "@mario" sends "/settime 15:00"
+    Then the bot should send:
       """
-      {payment reminder}
+      Ok, @mario! Ho impostato l'orario della partita alle 15:00
       """
-    And the bot should pin the last message
+    And the bot should edit the summary to:
+      """
+      *GIORNO*: Mercoledì 21/10/2026 | 15:00
+
+      {ten empty slots}
+
+      {default tail}
+      """
+    And the bot should pin the summary
+    And the bot should send nothing else
+    And the match should have:
+      | field | value                |
+      | day   | Mercoledì 21/10/2026 |
+      | time  | 15:00                |
+
+  Scenario: /settime on an incomplete list edits the summary and keeps the players
+    Given a match was started
+    And "@mario" had sent "/setnumber 2"
+    And "@mario" had sent "aggiungi anna"
+    When "@mario" sends "/settime 21:30"
+    Then the bot should send:
+      """
+      Ok, @mario! Ho impostato l'orario della partita alle 21:30
+      """
+    And the bot should edit the summary to:
+      """
+      *GIORNO*: Mercoledì 28/10/2026 | 21:30
+
+      1. anna ✅
+      2. ❌
+
+      {default tail}
+      """
+    And the bot should pin the summary
     And the bot should send nothing else
 
   Scenario Outline: /settime "<text>" is stored as <stored>
@@ -943,18 +930,6 @@ Feature: Match settings
       | day             | Mercoledì 28/10/2026 |
       | time            | 20:00                |
       | summary message | (none)               |
-
-  Scenario: An invalid /settime keeps the payment reminder scheduled before
-    Given a match was started
-    And "@mario" had sent "/setday 25/10/2026"
-    And "@mario" had sent "/settime stasera"
-    When the scheduled jobs run
-    Then the bot should send plain text:
-      """
-      {payment reminder}
-      """
-    And the bot should pin the last message
-    And the bot should send nothing else
 
   Scenario: /settime without argument explains the usage
     Given a match was started
