@@ -48,7 +48,15 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 @media (max-width: 359px) { .hero h1 { font-size: 20px; } }
 .hero .mark { color: #111111; }
 .hero .count { font-size: 16px; font-weight: 700; }
-.hero .pitch { font-size: 14px; color: var(--muted-on-accent); white-space: pre-line; }
+.hero .pitch { font-size: 14px; font-weight: 500; color: var(--muted-on-accent); white-space: pre-line; overflow-wrap: anywhere; }
+.hero .pitch .pl { font-weight: 700; color: var(--app-on-accent); }
+
+/* note panel (description) */
+.noteb { background: var(--app-surface-alt); border: 1px solid var(--line); border-radius: 20px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.noteb h2 { font-size: 14px; font-weight: 700; color: var(--app-text); }
+.note-text { font-size: 14px; font-weight: 500; color: var(--app-text); white-space: pre-line; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.note-text.open { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
+.link { min-height: 44px; min-width: 44px; padding: 0; font-size: 14px; font-weight: 700; text-decoration: underline; text-align: left; color: var(--app-text); }
 
 /* tabs */
 .seg { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--app-surface-alt); }
@@ -65,6 +73,36 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .row.free { color: var(--app-muted); }
 .tu { flex: none; background: var(--app-accent); color: var(--app-on-accent); border-radius: 999px; font-size: 12px; font-weight: 700; padding: 1px 10px; }
 
+/* people rows as buttons */
+.row.has-btn { padding: 0; }
+.rb { flex: 1; min-width: 0; align-self: stretch; min-height: 44px; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.rb:active { background: var(--app-surface-alt); }
+.rb .more { flex: none; font-size: 20px; line-height: 1; color: var(--app-muted); }
+
+/* add form */
+.addwrap { display: flex; flex-direction: column; }
+.addform { gap: 12px; }
+.form-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.form-head h2 { font-size: 16px; font-weight: 700; }
+.form-head .link { text-align: right; }
+.addform label { font-size: 14px; font-weight: 700; }
+.field { width: 100%; min-height: 48px; border-radius: 999px; padding: 0 16px; border: 1px solid var(--line); background: var(--app-surface); color: var(--app-text); font: 500 16px/1.35 "Outfit", system-ui, sans-serif; }
+.field::placeholder { color: var(--app-muted); opacity: 1; }
+.field:focus { border: 2px solid var(--app-text); padding: 0 15px; }
+.hint { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--app-muted); }
+.panel .hint p, .hint p { font-size: 14px; color: var(--app-muted); }
+.form-err { font-size: 14px; font-weight: 700; color: var(--app-text); }
+.panel .form-err { color: var(--app-text); }
+.pair { display: flex; gap: 8px; }
+.pair .btn { flex: 1 1 0; min-width: 0; }
+
+/* menu dialog (fallback for showPopup) */
+dialog.menu { border: 0; border-radius: 20px; padding: 16px; width: calc(100% - 32px); max-width: 358px; background: var(--app-surface); color: var(--app-text); }
+dialog.menu::backdrop { background: rgba(17,17,17,.5); }
+dialog.menu h2 { font-size: 18px; font-weight: 700; }
+dialog.menu p { color: var(--app-muted); font-size: 14px; margin: 4px 0 12px; }
+dialog.menu .btn + .btn { margin-top: 8px; }
+
 /* teams */
 .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .team h3 { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; min-height: 32px; }
@@ -73,6 +111,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .disc.bianca { background: #FFFFFF; }
 .team .row { gap: 8px; }
 .team .row .n { width: 18px; }
+.team .rb { gap: 8px; padding: 0 6px; border-radius: 12px; }
+.team.target { background: var(--app-surface-alt); border-radius: 16px; padding: 0 4px; }
+.team .rb[aria-pressed="true"] { background: var(--app-accent); color: var(--app-on-accent); }
+.team .rb[aria-pressed="true"] .n { color: var(--muted-on-accent); }
+.team .rb[aria-pressed="true"] .tu { background: #111111; color: #FFFFFF; }
+.team .rb[aria-busy="true"] { opacity: .6; }
+.team .rb:focus-visible { outline-offset: 2px; }
 .note { font-size: 14px; color: var(--app-muted); }
 .panel { background: var(--app-surface-alt); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .panel h3 { font-size: 18px; font-weight: 700; }
@@ -97,8 +142,11 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .btn.block { width: 100%; }
 
 /* toast */
-.toast { position: fixed; left: 50%; bottom: calc(var(--bar-h, 0px) + 16px); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--strong-bg); color: var(--strong-text); padding: 10px 18px; border-radius: 20px; font-size: 14px; font-weight: 700; text-align: center; opacity: 0; pointer-events: none; }
-.toast.show { opacity: 1; }
+.toast { visibility: hidden; position: fixed; left: 50%; bottom: calc(var(--bar-h, 0px) + 16px); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--strong-bg); color: var(--strong-text); padding: 10px 18px; border-radius: 20px; font-size: 14px; font-weight: 700; text-align: center; opacity: 0; pointer-events: none; }
+.toast.show { opacity: 1; visibility: visible; }
+.toast.snack { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 18px; text-align: left; }
+.toast.snack.show { pointer-events: auto; }
+.snack-btn { flex: none; min-width: 44px; min-height: 44px; font-size: 14px; font-weight: 700; text-decoration: underline; color: var(--strong-text); }
 
 /* full-screen states */
 .state { padding-top: 30vh; align-items: stretch; }
@@ -109,7 +157,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 @media (max-width: 359px) { .col { padding-left: 12px; padding-right: 12px; } .bar-in { padding-left: 12px; padding-right: 12px; } }
 @media (prefers-reduced-motion: no-preference) {
-  .toast { transition: opacity 200ms ease; }
+  .toast { transition: opacity 200ms ease, visibility 0s linear 200ms; }
+  .toast.show { transition-delay: 0s; }
   .btn, .seg button { transition: transform 120ms ease, opacity 120ms ease; }
   .btn:active { transform: scale(.98); }
 }
