@@ -27,7 +27,7 @@ dev = [
     # 9.0.1 is the first release compatible with pytest 9.2 (pytest-dev/pytest-bdd#850).
     "pytest-bdd>=9.0.1",
     "time-machine>=3.5.1",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
 ]
 
 [tool.uv]
