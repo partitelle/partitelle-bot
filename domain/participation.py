@@ -142,13 +142,7 @@ def decide_leave(match: Match, person: Person) -> Change:
     if found is None:
         return Change(Outcome.NOT_IN, person.name)
     outcome = Outcome.REMOVED_MAYBE if found.is_maybe else Outcome.REMOVED
-    # the row is going away: the id is only for the history, when the row had none
-    return Change(
-        outcome,
-        found.name,
-        revokes_teams=revokes,
-        telegram_user_id=person.telegram_user_id,
-    )
+    return Change(outcome, found.name, revokes_teams=revokes)
 
 
 def decide_add(match: Match, name: str) -> Change:

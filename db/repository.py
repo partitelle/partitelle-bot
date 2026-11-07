@@ -259,10 +259,9 @@ def remove_participant(
     participant: Participant,
     *,
     actor: Actor,
-    acting_user_id: int | None = None,
 ) -> None:
-    """Raises ValueError when the participant is not in the list. The history keeps the
-    row's user id, else `acting_user_id` (the person leaving a row that has no id)."""
+    """Raises ValueError when the participant is not in the list. The history keeps only
+    the row's own user id (none when the row had none)."""
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         removed = conn.execute(
@@ -282,7 +281,7 @@ def remove_participant(
         _log_event(
             conn,
             match_uuid,
-            (participant_uuid, display_name, user_id or acting_user_id),
+            (participant_uuid, display_name, user_id),
             action,
             actor,
         )

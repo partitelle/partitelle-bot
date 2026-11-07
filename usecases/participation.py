@@ -57,13 +57,9 @@ def _apply(chat_id: int, change: Change, actor: Actor) -> None:
                 chat_id, name, True, actor=actor, telegram_user_id=user_id
             )
         case Outcome.REMOVED:
-            remove_participant(
-                chat_id, Participant(name), actor=actor, acting_user_id=user_id
-            )
+            remove_participant(chat_id, Participant(name), actor=actor)
         case Outcome.REMOVED_MAYBE:
-            remove_participant(
-                chat_id, Participant(name, True), actor=actor, acting_user_id=user_id
-            )
+            remove_participant(chat_id, Participant(name, True), actor=actor)
         case Outcome.ALREADY_IN | Outcome.ALREADY_MAYBE if user_id:
             link_participant_user(chat_id, name, user_id, actor=actor)
         case _:

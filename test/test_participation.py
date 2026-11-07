@@ -246,11 +246,11 @@ class TestDecideWithIds(unittest.TestCase):
         )
         self.assertEqual(
             decide_leave(m, Person("@new", 7)),
-            Change(Outcome.REMOVED, "@old", telegram_user_id=7),
+            Change(Outcome.REMOVED, "@old"),
         )
         self.assertEqual(
             decide_leave(m, Person("@x", 8)),
-            Change(Outcome.REMOVED_MAYBE, "@bea", telegram_user_id=8),
+            Change(Outcome.REMOVED_MAYBE, "@bea"),
         )
 
     def test_a_name_held_by_another_user_is_taken_even_when_full(self):

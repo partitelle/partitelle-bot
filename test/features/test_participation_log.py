@@ -72,16 +72,17 @@ def test_leaving_logs_the_removed_row_and_its_uuid(db):
     ]
 
 
-def test_leaving_a_row_without_an_id_logs_the_id_of_the_person_leaving(db):
+def test_leaving_a_row_without_an_id_does_not_log_the_id_of_the_person_leaving(db):
     start(db)
     participation.add_names(CHAT, ["@anna"])
     participation.propose_names(CHAT, ["@bea"])
     assert participation.leave(CHAT, Person("@anna", 7)).outcome == "removed"
     assert participation.leave(CHAT, Person("@bea", 8)).outcome == "removed_maybe"
     assert events(db)[2:] == [
-        ("removed", SELF, "@anna", 7, None),
-        ("removed_maybe", SELF, "@bea", 8, None),
+        ("removed", SELF, "@anna", None, None),
+        ("removed_maybe", SELF, "@bea", None, None),
     ]
+    assert all(row[3] is None for row in db.fetch_events(CHAT)[2:])
 
 
 def test_actions_on_names_log_other_and_no_id(db):
