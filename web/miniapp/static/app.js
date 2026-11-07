@@ -93,6 +93,16 @@
   }
   function pauseSnack() { if (snackOn) clearTimeout(toastTimer); }
   function resumeSnack() { if (snackOn) snackStart(); }
+  // keep the last rows above the toast: reserve its height (plus a gap) at the bottom of the page while it shows
+  function reserveToastRoom() {
+    var atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    var room = toastEl.classList.contains('show') ? toastEl.offsetHeight + 8 : 0;
+    root.style.setProperty('--toast-h', room + 'px');
+    if (room && atEnd) window.scrollTo(0, document.documentElement.scrollHeight);
+  }
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(reserveToastRoom).observe(toastEl, { attributes: true, attributeFilter: ['class'], childList: true, characterData: true, subtree: true });
+  }
   toastEl.addEventListener('mouseenter', pauseSnack);
   toastEl.addEventListener('focusin', pauseSnack);
   toastEl.addEventListener('mouseleave', function () { if (!toastEl.contains(document.activeElement)) resumeSnack(); });
