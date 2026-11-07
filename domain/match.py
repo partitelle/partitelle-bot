@@ -10,15 +10,6 @@ from utils.constants import default_message, default_target
 if TYPE_CHECKING:
     from domain.participation import Person
 
-# the pitch the /bamboo command starts every match with
-BAMBOO_PITCH = (
-    "Crespi Sport Village \n"
-    "\n"
-    "Via Carlo Valvassori Peroni, 48, 20133 \n"
-    "Milano, MI, 02 266 3774 \n"
-    "https://g.co/kgs/L9b6KZ"
-)
-
 
 @dataclass(frozen=True)
 class Participant:

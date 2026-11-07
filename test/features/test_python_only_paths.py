@@ -1,49 +1,14 @@
-"""Paths the Gherkin scenarios do not describe (/bamboo, Telegram rejecting a summary, the db guard on names), exercised through the same
+"""Paths the Gherkin scenarios do not describe (Telegram rejecting a summary, the db guard on names), exercised through the same
 fake Telegram world. Plain pytest on purpose: the .feature files are the contract and are not touched."""
 
 from telegram.helpers import escape_markdown
 
 PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
 PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
-BAMBOO_GREETING = (
-    "Ciao bestie 😎, chi c'è per il prossimo calcetto? \n"
-    "\n"
-    "- se sei in forse scrivi _proponimi_, \n"
-    "- se vuoi proporre qualcuno scrivi _proponi <nome>_, \n"
-    "- per essere aggiunto o confermato rispondi _aggiungimi_,\n"
-    "- per aggiungere o confermare qualcuno usa _aggiungi <nome>_,\n"
-    "- per essere rimosso _toglimi_, \n"
-    "- per rimuovere qualcuno _togli <nome>_, \n"
-    "- per modificare le squadre scrivi _scambia <nome 1> con <nome 2>_. \n\n"
-    "Posso anche pinnare i messaggi se vuoi ma per farlo ricordati di aggiungermi come amministratore.\n"
-    "\n" + PRIVACY_LINE
-)
 BAD_FORMATTING = "Bring *shoes and _balls"
 PARSE_ERROR = (
     "can't parse entities: Can't find end of the entity starting at byte offset 40"
 )
-
-
-def test_bamboo_creates_the_match_with_the_bamboo_defaults_once(world):
-    world.add_chat("Bamboo")
-    world.add_user("@giulia", "Giulia", "giulia")
-
-    world.send("@giulia", "/bamboo")
-
-    greeting = world.next_call()
-    assert greeting.method == "send_message"
-    assert greeting.params["parse_mode"] == "markdown"
-    assert greeting.params["text"] == BAMBOO_GREETING
-    assert greeting.params["link_preview_options"] == {"is_disabled": True}
-    match = world.db.fetch_match(world.current_chat.id)
-    assert match["pitch"].startswith("Crespi Sport Village")
-    assert match["day"].startswith("Mercoledì ")
-
-    world.db.set_pitch(world.current_chat.id, "Altro campo")
-    world.send("@giulia", "/bamboo")  # already there: answered, not recreated
-    assert world.next_call().method == "send_message"
-    assert world.db.fetch_match(world.current_chat.id)["pitch"] == "Altro campo"
-    assert not world.unconsumed()
 
 
 def test_new_summary_rejected_by_telegram_is_resent_as_plain_text(world):
