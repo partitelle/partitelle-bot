@@ -258,28 +258,38 @@ Feature: Starting and stopping a match
       | field | value       |
       | pitch | Campo Rossi |
 
-  Scenario: /bamboo only says it was retired
-    When "@mario" sends "/bamboo"
-    Then the bot should send the quoted text "/bamboo è andato in pensione: ora si usa /start. Se serve, il campo si cambia con /setpitch <campo>"
-    And the bot should send nothing else
-    And there should be no match for this chat
-
-  Scenario: /bamboo does not use the default pitch of the chat either
+  Scenario: /bamboo in a chat with another default pitch keeps the bamboo pitch
     Given the chat has the default pitch "Campo Rossi"
     When "@mario" sends "/bamboo"
-    Then the bot should send the quoted text "/bamboo è andato in pensione: ora si usa /start. Se serve, il campo si cambia con /setpitch <campo>"
+    Then the bot should send the text "welcome" without a link preview
     And the bot should send nothing else
-    And there should be no match for this chat
+    When "@mario" sends "/participants"
+    Then the bot should send:
+      """
+      *GIORNO*: Mercoledì 28/10/2026 | 20:00
 
-  Scenario: /bamboo leaves an existing match unchanged
-    Given a match was started
-    And the match target is 6
-    And the match has the players "anna, bea"
-    When "@mario" sends "/bamboo"
-    Then the bot should send the quoted text "/bamboo è andato in pensione: ora si usa /start. Se serve, il campo si cambia con /setpitch <campo>"
+      1. ❌
+      2. ❌
+      3. ❌
+      4. ❌
+      5. ❌
+      6. ❌
+      7. ❌
+      8. ❌
+      9. ❌
+      10. ❌
+
+      {default description}
+
+      *CAMPO*: 
+      Crespi Sport Village 
+
+      Via Carlo Valvassori Peroni, 48, 20133 
+      Milano, MI, 02 266 3774 
+      https://g.co/kgs/L9b6KZ
+      """
+    And the bot should pin the last message
     And the bot should send nothing else
     And the match should have:
-      | field   | value                |
-      | players | anna, bea            |
-      | target  | 6                    |
-      | pitch   | (none)               |
+      | field | value                                                                                                                      |
+      | pitch | Crespi Sport Village \n\nVia Carlo Valvassori Peroni, 48, 20133 \nMilano, MI, 02 266 3774 \nhttps://g.co/kgs/L9b6KZ |

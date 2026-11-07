@@ -1,14 +1,18 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-
-RETIRED_TEXT = (
-    "/bamboo è andato in pensione: ora si usa /start. "
-    "Se serve, il campo si cambia con /setpitch <campo>"
-)
+from db.repository import get_match, create_match
+from callbacks.welcome import NO_LINK_PREVIEW, WELCOME_TEXT
+from domain import BAMBOO_PITCH, Match
 
 
 async def bamboo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Retired: kept as a command only to say so. It never touches the match."""
+    chat_id = update.message.chat_id
+    if get_match(chat_id) is None:
+        create_match(Match.new(chat_id, BAMBOO_PITCH))
+
     await context.bot.send_message(
-        chat_id=update.effective_chat.id, parse_mode="markdown", text=RETIRED_TEXT
+        chat_id=update.effective_chat.id,
+        parse_mode="markdown",
+        text=WELCOME_TEXT,
+        link_preview_options=NO_LINK_PREVIEW,
     )
