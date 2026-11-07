@@ -22,6 +22,14 @@ class Outcome(StrEnum):
     NAME_TAKEN = "name_taken"
 
 
+class Actor(StrEnum):
+    """Whose action it is, for the history of the list: a person acting on themselves or
+    someone acting on a name."""
+
+    SELF = "self"
+    OTHER = "other"
+
+
 _CHANGES_LIST = frozenset(
     {
         Outcome.ADDED,
@@ -134,7 +142,13 @@ def decide_leave(match: Match, person: Person) -> Change:
     if found is None:
         return Change(Outcome.NOT_IN, person.name)
     outcome = Outcome.REMOVED_MAYBE if found.is_maybe else Outcome.REMOVED
-    return Change(outcome, found.name, revokes_teams=revokes)
+    # the row is going away: the id is only for the history, when the row had none
+    return Change(
+        outcome,
+        found.name,
+        revokes_teams=revokes,
+        telegram_user_id=person.telegram_user_id,
+    )
 
 
 def decide_add(match: Match, name: str) -> Change:

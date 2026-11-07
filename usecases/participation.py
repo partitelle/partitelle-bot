@@ -13,7 +13,7 @@ from db.repository import (
     save_teams,
     set_participant_maybe,
 )
-from domain import Change, Match, Outcome, Participant, Person
+from domain import Actor, Change, Match, Outcome, Participant, Person
 from domain.names import is_command_name
 from domain.participation import (
     decide_add,
@@ -34,29 +34,38 @@ def _run(
     if match is None:
         return None
     change = decide(match, person)
-    _apply(chat_id, change)
+    _apply(chat_id, change, Actor.SELF)
     if change.revokes_teams:
         save_teams(chat_id, None)
     return change
 
 
-def _apply(chat_id: int, change: Change) -> None:
+def _apply(chat_id: int, change: Change, actor: Actor) -> None:
     name = change.name
+    user_id = change.telegram_user_id
     match change.outcome:
         case Outcome.ADDED:
-            add_participant(chat_id, Participant(name, False, change.telegram_user_id))
+            add_participant(chat_id, Participant(name, False, user_id), actor=actor)
         case Outcome.CONFIRMED:
-            set_participant_maybe(chat_id, name, False, change.telegram_user_id)
+            set_participant_maybe(
+                chat_id, name, False, actor=actor, telegram_user_id=user_id
+            )
         case Outcome.PROPOSED:
-            add_participant(chat_id, Participant(name, True, change.telegram_user_id))
+            add_participant(chat_id, Participant(name, True, user_id), actor=actor)
         case Outcome.MOVED_TO_MAYBE:
-            set_participant_maybe(chat_id, name, True, change.telegram_user_id)
+            set_participant_maybe(
+                chat_id, name, True, actor=actor, telegram_user_id=user_id
+            )
         case Outcome.REMOVED:
-            remove_participant(chat_id, Participant(name))
+            remove_participant(
+                chat_id, Participant(name), actor=actor, acting_user_id=user_id
+            )
         case Outcome.REMOVED_MAYBE:
-            remove_participant(chat_id, Participant(name, True))
-        case Outcome.ALREADY_IN | Outcome.ALREADY_MAYBE if change.telegram_user_id:
-            link_participant_user(chat_id, name, change.telegram_user_id)
+            remove_participant(
+                chat_id, Participant(name, True), actor=actor, acting_user_id=user_id
+            )
+        case Outcome.ALREADY_IN | Outcome.ALREADY_MAYBE if user_id:
+            link_participant_user(chat_id, name, user_id, actor=actor)
         case _:
             pass
 
@@ -95,7 +104,7 @@ def _run_names(
             # stopped while the batch ran (no names in the message)
             raise LookupError("the match was stopped during the batch")
         change = decide(match, name)
-        _apply(chat_id, change)
+        _apply(chat_id, change, Actor.OTHER)
         changes.append(change)
     if any(change.revokes_teams for change in changes):
         save_teams(chat_id, None)
@@ -120,7 +129,7 @@ def remove_name(chat_id: int, name: str) -> Change | None:
     if match is None:
         return None
     change = decide_remove(match, name)
-    _apply(chat_id, change)
+    _apply(chat_id, change, Actor.OTHER)
     if change.revokes_teams:
         save_teams(chat_id, None)
     return change

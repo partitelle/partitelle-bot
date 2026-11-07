@@ -2,7 +2,7 @@
 
 from db import repository
 from db.repository import add_participant, create_match, get_match, save_teams
-from domain import Match, Outcome, Participant, Person, Teams
+from domain import Actor, Match, Outcome, Participant, Person, Teams
 from usecases import participation
 
 CHAT = 4242
@@ -73,7 +73,7 @@ def test_new_rows_store_the_user_id_and_names_added_by_others_do_not(db):
     start(db)
     participation.join(CHAT, Person("@anna", 7))
     participation.maybe(CHAT, Person("@bea", 8))
-    add_participant(CHAT, Participant("luca"))
+    add_participant(CHAT, Participant("luca"), actor=Actor.OTHER)
     assert get_match(CHAT).participants == [
         Participant("@anna", False, 7),
         Participant("@bea", True, 8),
@@ -164,6 +164,8 @@ def test_the_id_is_not_saved_when_another_row_already_has_it(db):
     """A concurrent row with the same id degrades to no backfill, not a unique-index error."""
     start(db)
     db.set_players(CHAT, [("@old", False, 7), ("@new", True)])
-    repository.link_participant_user(CHAT, "@new", 7)
-    repository.set_participant_maybe(CHAT, "@new", False, telegram_user_id=7)
+    repository.link_participant_user(CHAT, "@new", 7, actor=Actor.SELF)
+    repository.set_participant_maybe(
+        CHAT, "@new", False, actor=Actor.SELF, telegram_user_id=7
+    )
     assert ids() == {"@old": 7, "@new": None}

@@ -3,7 +3,7 @@
 import pytest
 
 from db.repository import add_participant, get_match, save_teams
-from domain import Change, Outcome, Participant, Person, Teams
+from domain import Actor, Change, Outcome, Participant, Person, Teams
 from domain.teams import SwapOutcome, SwapResult, TeamsOutcome, TeamsResult
 from usecases import participation
 from usecases import teams as teams_usecase
@@ -123,7 +123,7 @@ def test_remove_confirmed_maybe_and_not_in(db):
 def test_remove_by_name_a_row_that_has_a_telegram_user_id(db):
     start(db)
     participation.join(CHAT, Person("@Anna", 7))
-    add_participant(CHAT, Participant("luca"))
+    add_participant(CHAT, Participant("luca"), actor=Actor.OTHER)
     assert remove_name(CHAT, "@anna") == Change(Outcome.REMOVED, "@Anna")
     assert get_match(CHAT).participants == [Participant("luca", False, None)]
 
