@@ -754,3 +754,56 @@ def test_nothing_sensitive_is_ever_logged(env, caplog, monkeypatch):
     for secret in secrets:
         assert secret not in logged, "a secret reached the logs"
     assert "Authorization" not in logged and "tma " not in logged
+
+
+# ---- a description Telegram cannot parse --------------------------------------------------------
+
+BAD_FORMATTING = "Bring *shoes and _balls"
+PARSE_ERROR = (
+    "can't parse entities: Can't find end of the entity starting at byte offset 40"
+)
+
+
+def test_join_with_an_unparsable_description_edits_the_card_as_plain_text(env):
+    env.db._set_match(env.chat.id, "description", BAD_FORMATTING + "\n")
+    env.world.telegram.fail_next("edit_message_text", PARSE_ERROR)
+
+    assert env.act("join").status_code == 200
+
+    reply, rejected, plain, pin = env.calls()
+    assert reply.method == "send_message"
+    assert rejected.method == "edit_message_text" and rejected.failed
+    assert rejected.params["parse_mode"] == "markdown"
+    assert plain.method == "edit_message_text"
+    assert "parse_mode" not in plain.params
+    assert plain.params["message_id"] == SUMMARY_ID
+    assert plain.params["text"] == rejected.params["text"]
+    assert BAD_FORMATTING in plain.params["text"]
+    assert button(plain) == button(rejected)
+    assert button(plain)[0][0]["url"].endswith(f"?startapp={env.token}")
+    assert pin.method == "pin_chat_message"
+    assert pin.params["message_id"] == SUMMARY_ID
+
+
+def test_join_with_an_unparsable_description_and_no_card_sends_it_as_plain_text(env):
+    env.db.set_summary_message_id(env.chat.id, None)
+    env.db._set_match(env.chat.id, "description", BAD_FORMATTING + "\n")
+    # send_message fails in order: the first is the reply, the second is the new card
+    env.world.telegram.fail_next("send_message", "chat not found")
+    env.world.telegram.fail_next("send_message", PARSE_ERROR)
+
+    assert env.act("join").status_code == 200
+
+    reply, rejected, plain, pin = env.calls()
+    assert reply.method == "send_message" and reply.failed
+    assert rejected.method == "send_message" and rejected.failed
+    assert rejected.params["parse_mode"] == "markdown"
+    assert plain.method == "send_message" and not plain.failed
+    assert "parse_mode" not in plain.params
+    assert plain.params["text"] == rejected.params["text"]
+    assert BAD_FORMATTING in plain.params["text"]
+    assert button(plain) == button(rejected)
+    assert button(plain)[0][0]["url"].endswith(f"?startapp={env.token}")
+    assert pin.method == "pin_chat_message"
+    assert pin.params["message_id"] == env.world.last_bot_message_id()
+    assert get_match(env.chat.id).summary_message_id == env.world.last_bot_message_id()

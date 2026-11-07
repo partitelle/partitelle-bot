@@ -1,6 +1,8 @@
 """Paths the Gherkin scenarios do not describe (/bamboo, Telegram rejecting a summary, the db guard on names), exercised through the same
 fake Telegram world. Plain pytest on purpose: the .feature files are the contract and are not touched."""
 
+from telegram.helpers import escape_markdown
+
 PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
 PRIVACY_LINE = "Come usiamo i tuoi dati: https://partitelle.com/privacy"
 BAMBOO_GREETING = (
@@ -60,6 +62,7 @@ def test_new_summary_rejected_by_telegram_is_resent_as_plain_text(world):
     assert plain.method == "send_message"
     assert "parse_mode" not in plain.params
     assert plain.params["text"] == rejected.params["text"]
+    assert plain.params.get("reply_markup") == rejected.params.get("reply_markup")
     assert BAD_FORMATTING in plain.params["text"]
     pin = world.next_call()  # the plain summary is the tracked one, so it is pinned
     assert pin.method == "pin_chat_message"
@@ -89,6 +92,7 @@ def test_summary_edit_rejected_by_telegram_is_resent_as_plain_text(world):
     assert "parse_mode" not in plain.params
     assert plain.params["message_id"] == rejected.params["message_id"]
     assert plain.params["text"] == rejected.params["text"]
+    assert plain.params.get("reply_markup") == rejected.params.get("reply_markup")
     assert BAD_FORMATTING in plain.params["text"]
     assert world.next_call().method == "pin_chat_message"
     assert not world.unconsumed()
