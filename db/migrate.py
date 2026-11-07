@@ -12,6 +12,7 @@ from psycopg import sql
 from yoyo import get_backend, read_migrations
 
 from conf.conf import host, database, user, password, port, db_schema
+from conf.conf import migrate_user, migrate_password
 from db.connection import validate_schema
 
 # a fixed name: `python -m db.migrate` (Render) would otherwise log as `__main__`
@@ -20,21 +21,35 @@ logger = logging.getLogger("db.migrate")
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 
+def migration_credentials():
+    """The (user, password) the migrations connect with: PB_DB_MIGRATE_USER/PASSWORD when set, else the runtime ones."""
+    if bool(migrate_user) != bool(migrate_password):
+        raise RuntimeError(
+            "PB_DB_MIGRATE_USER and PB_DB_MIGRATE_PASSWORD must be set together: "
+            "set both, or neither to migrate with PB_DB_USER/PB_DB_PASSWORD"
+        )
+    if migrate_user:
+        return migrate_user, migrate_password
+    return user, password
+
+
 def build_uri(schema):
+    db_user, db_password = migration_credentials()
     # `schema` is handled by yoyo's postgres backend: it runs `SET search_path TO <schema>`
     # on every connection, so also yoyo's own tables (_yoyo_migration, ...) live in the schema.
     return (
-        f"postgresql+psycopg://{quote(user or '', safe='')}:{quote(password or '', safe='')}"
+        f"postgresql+psycopg://{quote(db_user or '', safe='')}:{quote(db_password or '', safe='')}"
         f"@{host}:{port or 5432}/{database}?schema={schema}"
     )
 
 
 def create_schema(schema):
+    db_user, db_password = migration_credentials()
     with psycopg.connect(
         host=host,
         dbname=database,
-        user=user,
-        password=password,
+        user=db_user,
+        password=db_password,
         port=port,
         autocommit=True,
     ) as conn:
