@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .hero :focus-visible { outline-color: #111111; }
 [tabindex="-1"]:focus { outline: none; }
 
-.col { max-width: 390px; margin: 0 auto; padding: 16px 16px calc(var(--bar-h, 0px) + 16px); display: flex; flex-direction: column; gap: 12px; }
+.col { max-width: 390px; margin: 0 auto; padding: 16px 16px calc(var(--bar-h, 0px) + var(--toast-h, 0px) + 16px); display: flex; flex-direction: column; gap: 12px; }
 .mark { display: block; height: 24px; aspect-ratio: 327 / 323; width: auto; flex: none; }
 
 /* hero */
