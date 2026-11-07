@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           # AUTOMERGE_TOKEN (a fine-grained PAT stored as a Dependabot secret) instead of GITHUB_TOKEN:
           # a merge done with GITHUB_TOKEN does not trigger the `push` workflow on main, so CI would not
@@ -27,45 +27,63 @@ jobs:
           github-token: ${{ secrets.AUTOMERGE_TOKEN }}
 
       # Dependabot updates pyproject.toml/uv.lock but not requirements.txt (the file Render installs from), so
-      # regenerate it on the PR branch, majors included (on GitHub Actions PRs it finds no diff). Pushing with AUTOMERGE_TOKEN (not GITHUB_TOKEN) re-triggers
-      # CI. The follow-up run finds no diff, so it does not commit again.
+      # regenerate it on the PR branch, majors included. Only `uv` PRs need it: GitHub Actions PRs do not touch
+      # dependencies. The checkout keeps no credentials in .git/config, so the export below runs on
+      # Dependabot-supplied files without a token on disk; AUTOMERGE_TOKEN is only given to the push step. Pushing
+      # with AUTOMERGE_TOKEN (not GITHUB_TOKEN) re-triggers CI. The follow-up run finds no diff, so it does not
+      # commit again.
       - name: Check out PR branch
-        uses: actions/checkout@v7
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'uv' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.AUTOMERGE_TOKEN }}
+          persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.3.3
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'uv' }}
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.5"
 
       - name: Regenerate requirements.txt
+        id: regenerate
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'uv' }}
         run: |
-          uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt
+          uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
           if git diff --quiet requirements.txt; then
             echo "requirements.txt already up to date"
           else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898+github-actions[bot]@users.noreply.github.com"
-            git commit -m "chore(deps): regenerate requirements.txt" requirements.txt
-            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Commit and push requirements.txt
+        if: ${{ steps.regenerate.outputs.changed == 'true' }}
+        env:
+          TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(deps): regenerate requirements.txt" requirements.txt
+          git push "https://x-access-token:${TOKEN}@github.com/${REPOSITORY}.git" "HEAD:refs/heads/${HEAD_REF}"
 
       # main requires a code-owner review, so auto-merge alone would wait forever. Approve patch and minor updates
       # with AUTOMERGE_TOKEN (its owner is a code owner). It runs after the regenerate step so the approval is on the
-      # final head commit, and it only calls the GitHub API: no PR code is run here. Majors are never approved.
+      # final head commit, and it only calls the GitHub API: no PR code is run here. Majors and GitHub Actions updates
+      # are never approved: they are reviewed by hand.
       - name: Approve patch and minor updates
-        if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor') }}
+        if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && steps.metadata.outputs.package-ecosystem == 'uv' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor') }}
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
         run: |
           gh pr review --approve --body "Auto-approved: Dependabot patch or minor update (dependabot-auto-merge.yml)." "$PR_URL"
 
-      # Patch and minor updates are merged once the required checks pass; majors are left for manual review.
+      # Patch and minor `uv` updates are merged once the required checks pass; majors and GitHub Actions updates are
+      # left for manual review.
       - name: Enable auto-merge
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'uv' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor') }}
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}

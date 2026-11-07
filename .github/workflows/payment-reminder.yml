@@ -38,7 +38,9 @@ jobs:
       BASE_URL: ${{ (inputs.target || 'prod') == 'test' && 'https://partitelle-bot-test.onrender.com' || 'https://partitelle-bot.onrender.com' }}
       JOBS_SECRET: ${{ (inputs.target || 'prod') == 'test' && secrets.JOBS_SECRET_TEST || secrets.JOBS_SECRET_PROD }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run payment reminders
         run: |
           if [ -z "$JOBS_SECRET" ]; then
