@@ -3,7 +3,7 @@ name = "partitelle-bot"
 # Placeholder, never bumped: uv requires a static version (dynamic would make uv build the project metadata, which fails on this flat layout).
 # The real version is the git tag created by the "Promote to prod" workflow.
 version = "0.0.0"
-description = "Telegram bot to organize football matches"
+description = "Telegram bot that organizes casual team games among friends"
 readme = "README.md"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]

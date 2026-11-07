@@ -1,18 +1,17 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
-from behaviours.edit_summary import edit_summary
-from behaviours.print_new_summary import print_new_summary
-from db import repository
-from db.repository import get_match, set_summary_message_id
-from domain.schedule import format_time, parse_time, with_time
-from utils.utils import flatten_args, get_sender_mention, format_summary
+from behaviours.publish_change import refresh_summary
+from domain.details import DetailOutcome
+from domain.schedule import format_time
+from usecases.details import set_time as change_time
+from utils.utils import flatten_args, get_sender_mention
 
 
 async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
-    match = get_match(chat_id)
-    if match is None:
+    result = change_time(chat_id, flatten_args(context.args))
+    if result is None:
         answer = (
             "Prima di iniziare con le danze, avvia una partita, per farlo usa /start"
         )
@@ -21,7 +20,7 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if len(context.args) == 0:
+    if result.outcome == DetailOutcome.MISSING:
         answer = "Non hai inserito l'orario: scrivi /settime <orario>"
         await context.bot.send_message(
             chat_id=update.effective_chat.id, parse_mode="markdown", text=answer
@@ -29,8 +28,7 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     sender = get_sender_mention(update)
-    at = parse_time(flatten_args(context.args))
-    if at is None:
+    if result.outcome == DetailOutcome.UNREADABLE:
         answer = (
             f"Non ho capito l'ora, {sender}: "
             "scrivila come HH:MM, per esempio /settime 21:30"
@@ -42,8 +40,8 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    starts = with_time(match.starts, at)
-    repository.set_starts(chat_id, starts)
+    starts = result.starts
+    assert starts is not None
     answer = (
         "Ok, "
         + sender
@@ -55,17 +53,4 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="markdown",
         text=escape_markdown(answer),
     )
-    match = get_match(chat_id)
-    current_situation = format_summary(match)
-    if match.summary_message_id is None:
-        msg = await print_new_summary(
-            current_situation, context.bot, update.effective_chat.id
-        )
-        set_summary_message_id(chat_id, msg.message_id)
-    else:
-        await edit_summary(
-            current_situation,
-            match.summary_message_id,
-            context.bot,
-            update.effective_chat.id,
-        )
+    await refresh_summary(context.bot, chat_id)
