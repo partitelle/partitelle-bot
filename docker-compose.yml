@@ -1,8 +1,8 @@
 services:
   db:
-    image: postgres:17
+    image: postgres:17.11
     ports:
-      - "${PB_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${PB_DB_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: partitelle
       POSTGRES_PASSWORD: partitelle
