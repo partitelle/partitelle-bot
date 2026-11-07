@@ -86,15 +86,15 @@ async def set_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         current_situation = format_summary(match)
                         if match.summary_message_id is None:
                             msg = await print_new_summary(
-                                current_situation, update, context
+                                current_situation, context.bot, update.effective_chat.id
                             )
                             set_summary_message_id(chat_id, msg.message_id)
                         else:
                             await edit_summary(
                                 current_situation,
                                 match.summary_message_id,
-                                update,
-                                context,
+                                context.bot,
+                                update.effective_chat.id,
                             )
 
                         if reached_target:
