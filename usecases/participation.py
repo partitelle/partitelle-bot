@@ -111,6 +111,11 @@ def propose_names(chat_id: int, names: list[str]) -> list[Change] | None:
     return _run_names(chat_id, names, decide_propose)
 
 
+def remove_names(chat_id: int, names: list[str]) -> list[Change] | None:
+    """Take names out of the list, same contract as `add_names`."""
+    return _run_names(chat_id, names, decide_remove)
+
+
 def remove_name(chat_id: int, name: str) -> Change | None:
     """Take a name out of the list; None when the chat has no active match."""
     match = get_match(chat_id)

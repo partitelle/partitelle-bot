@@ -1,7 +1,7 @@
 from telegram import LinkPreviewOptions
 
 WELCOME_TEXT = (
-    "Ciao bestie 😎, chi c'è per il prossimo calcetto? \n"
+    "Ciao bestie 😎, chi c'è per la prossima partita? \n"
     "\n"
     "- se sei in forse scrivi _proponimi_, \n"
     "- se vuoi proporre qualcuno scrivi _proponi <nome>_, \n"
