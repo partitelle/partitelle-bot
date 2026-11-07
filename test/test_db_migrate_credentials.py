@@ -101,7 +101,7 @@ def test_yoyo_connects_with_the_runtime_credentials_by_default(
     monkeypatch.setattr(db_migrate, "database", "partitelle")
     monkeypatch.setattr(db_migrate, "port", "5432")
     assert db_migrate.build_uri("staging") == (
-        "postgresql+psycopg://runtime_user:runtime-pw@db.example:5432/partitelle?schema=staging"
+        "postgresql+psycopg://runtime_user:runtime-pw@db.example:5432/partitelle?schema=staging&sslmode=disable"
     )
 
 
@@ -114,5 +114,5 @@ def test_yoyo_connects_with_the_migration_credentials_when_set(
     credentials("owner_user", "p@ss/w:rd")
     assert db_migrate.build_uri("staging") == (
         f"postgresql+psycopg://owner_user:{quote('p@ss/w:rd', safe='')}"
-        "@db.example:5432/partitelle?schema=staging"
+        "@db.example:5432/partitelle?schema=staging&sslmode=disable"
     )
