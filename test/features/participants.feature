@@ -2563,3 +2563,182 @@ Feature: Managing the participants
     And the bot should pin the last message
     And the bot should send nothing else
     And the match of "Altra squadra" should have no players
+
+  # ---- the Telegram user id (issue #159) ----------------------------------------------------------
+
+  Scenario: aggiungimi stores the Telegram user id of the sender
+    Given a match was started
+    And the match target is 4
+    When "@mario" sends "aggiungimi"
+    Then the bot should send:
+      """
+      Ok, @mario, ti aggiungo
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. @mario ✅
+      2. ❌
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value  |
+      | players | @mario |
+    And the stored Telegram user id of "@mario" should be that of "@mario"
+
+  Scenario: proponimi stores the Telegram user id of the sender
+    Given a match was started
+    And the match target is 4
+    When "@mario" sends "proponimi"
+    Then the bot should send:
+      """
+      Ok, @mario, ti propongo
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. @mario ❓
+      2. ❌
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value          |
+      | players | @mario (maybe) |
+    And the stored Telegram user id of "@mario" should be that of "@mario"
+
+  Scenario: aggiungi <nome> by someone else stores no Telegram user id
+    Given a match was started
+    And the match target is 4
+    When "@mario" sends "aggiungi luca"
+    Then the bot should send:
+      """
+      Ok, aggiungo luca
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. luca ✅
+      2. ❌
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | luca  |
+    And no Telegram user id should be stored for "luca"
+
+  Scenario: after a username change aggiungimi still finds the sender under the old name
+    Given a match was started
+    And the match target is 4
+    And "@mario" had sent "aggiungimi"
+    And "@mario" changed username to "@mario2"
+    When "@mario" sends "aggiungimi"
+    Then the bot should send:
+      """
+      Ma @mario2, sei già nella lista
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value  |
+      | players | @mario |
+    And the stored Telegram user id of "@mario" should be that of "@mario"
+
+  Scenario: after a username change toglimi removes the row stored under the old name
+    Given a match was started
+    And the match target is 4
+    And "@mario" had sent "aggiungimi"
+    And "@mario" changed username to "@mario2"
+    When "@mario" sends "toglimi"
+    Then the bot should send:
+      """
+      Mamma mia... che paccaro
+      """
+    And the bot should edit the summary to:
+      """
+      {header}
+
+      1. ❌
+      2. ❌
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the summary
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value  |
+      | players | (none) |
+
+  Scenario: after a username change proponimi moves the row stored under the old name to maybe
+    Given a match was started
+    And the match target is 4
+    And "@mario" had sent "aggiungimi"
+    And "@mario" changed username to "@mario2"
+    When "@mario" sends "proponimi"
+    Then the bot should send:
+      """
+      Ok, @mario2, ti metto in forse
+      """
+    And the bot should edit the summary to:
+      """
+      {header}
+
+      1. @mario ❓
+      2. ❌
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the summary
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value          |
+      | players | @mario (maybe) |
+    And the stored Telegram user id of "@mario" should be that of "@mario"
+
+  Scenario: aggiungimi with a name that now belongs to another Telegram user adds nothing
+    Given a match was started
+    And the match target is 4
+    And the match has the player "@mario" of another Telegram user
+    When "@mario" sends "aggiungimi"
+    Then the bot should send:
+      """
+      Ma @mario, c'è già qualcuno con questo nome nella lista
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value  |
+      | players | @mario |
+
+  Scenario: toglimi with a name that belongs to another Telegram user removes nothing
+    Given a match was started
+    And the match target is 4
+    And the match has the player "@mario" of another Telegram user
+    When "@mario" sends "toglimi"
+    Then the bot should send:
+      """
+      Non eri in lista neanche prima
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value  |
+      | players | @mario |
