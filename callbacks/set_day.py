@@ -1,18 +1,17 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
-from behaviours.edit_summary import edit_summary
-from behaviours.print_new_summary import print_new_summary
-from db import repository
-from db.repository import get_match, set_summary_message_id
-from domain.schedule import format_day, parse_day, with_day
-from utils.utils import flatten_args, get_sender_mention, format_summary
+from behaviours.publish_change import refresh_summary
+from domain.details import DetailOutcome
+from domain.schedule import format_day
+from usecases.details import set_day as change_day
+from utils.utils import flatten_args, get_sender_mention
 
 
 async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
-    match = get_match(chat_id)
-    if match is None:
+    result = change_day(chat_id, flatten_args(context.args))
+    if result is None:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             parse_mode="markdown",
@@ -20,7 +19,7 @@ async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if len(context.args) == 0:
+    if result.outcome == DetailOutcome.MISSING:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             parse_mode="markdown",
@@ -29,8 +28,7 @@ async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     sender = get_sender_mention(update)
-    day = parse_day(flatten_args(context.args))
-    if day is None:
+    if result.outcome == DetailOutcome.UNREADABLE:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             parse_mode="markdown",
@@ -41,8 +39,8 @@ async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    starts = with_day(match.starts, day)
-    repository.set_starts(chat_id, starts)
+    starts = result.starts
+    assert starts is not None
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         parse_mode="markdown",
@@ -51,18 +49,4 @@ async def set_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ),
     )
 
-    match = get_match(chat_id)
-    current_situation = format_summary(match)
-
-    if match.summary_message_id is None:
-        msg = await print_new_summary(
-            current_situation, context.bot, update.effective_chat.id
-        )
-        set_summary_message_id(chat_id, msg.message_id)
-    else:
-        await edit_summary(
-            current_situation,
-            match.summary_message_id,
-            context.bot,
-            update.effective_chat.id,
-        )
+    await refresh_summary(context.bot, chat_id)
