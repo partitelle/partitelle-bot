@@ -5,14 +5,14 @@ import hmac
 import logging
 import os
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Route
+from starlette.routing import BaseRoute, Route
 from telegram import Update
 from telegram.ext import Application
 
@@ -66,11 +66,13 @@ def create_app(
     send_reminders: ReminderSender = send_due_reminders,
     now: Clock = utc_now,
     monotonic: MonotonicClock = time.monotonic,
+    extra_routes: Sequence[BaseRoute] = (),
 ) -> Starlette:
     """Build the web app. `application` receives the updates, `secret` guards the webhook.
 
     `jobs_secret` guards the jobs endpoints; when unset or empty they are disabled (404).
     `monotonic` is the clock of the health cache (injectable in tests).
+    `extra_routes` are added after the built-in ones (the Mini App, see web/miniapp.py).
     """
     health_lock = asyncio.Lock()
     health_cache: tuple[float, bool] | None = None  # (expires at, database is up)
@@ -150,5 +152,6 @@ def create_app(
             Route(f"/{WEBHOOK_PATH}", telegram, methods=["POST"]),
             Route("/health", health, methods=["GET"]),  # HEAD is added by Starlette
             Route("/jobs/payment-reminders", payment_reminders, methods=["POST"]),
+            *extra_routes,
         ]
     )

@@ -6,9 +6,18 @@ import os
 import uvicorn
 from telegram.ext import Application, ContextTypes
 
-from conf.conf import token, hosting_url, env, webhook_secret, jobs_secret
+from conf.conf import (
+    token,
+    hosting_url,
+    env,
+    webhook_secret,
+    jobs_secret,
+    miniapp_short_name,
+    miniapp_max_age,
+)
 from handlers import register_handlers
 from web.app import WEBHOOK_PATH, create_app
+from web.miniapp import miniapp_routes
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +56,23 @@ def configure_logging():
     )
     # httpx logs every request URL at INFO, and Bot API URLs contain the bot token (/bot<token>/...).
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # python-telegram-bot logs the parameters of every Bot API call at DEBUG (user ids, names, texts).
+    logging.getLogger("telegram").setLevel(logging.INFO)
 
 
 def build_server_config(application, secret):
     """The uvicorn config. The access log is off: the logs keep application warnings and errors only."""
     return uvicorn.Config(
-        create_app(application, secret, jobs_secret=jobs_secret),
+        create_app(
+            application,
+            secret,
+            jobs_secret=jobs_secret,
+            extra_routes=(
+                miniapp_routes(application, token, max_age=miniapp_max_age)
+                if miniapp_short_name
+                else ()
+            ),
+        ),
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
         access_log=False,
