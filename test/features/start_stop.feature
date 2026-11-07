@@ -8,7 +8,7 @@ Feature: Starting and stopping a match
     And today is "2026-10-21 21:00"
     And the text "welcome" is:
       """
-      Ciao bestie 😎, chi c'è per il prossimo calcetto? 
+      Ciao bestie 😎, chi c'è per la prossima partita? 
 
       - se sei in forse scrivi _proponimi_, 
       - se vuoi proporre qualcuno scrivi _proponi <nome>_, 
@@ -119,7 +119,7 @@ Feature: Starting and stopping a match
     When "@mario" sends "/stop"
     Then the bot should send:
       """
-      Ho cancellato la partita.
+      Ho chiuso la partita. Per organizzarne una nuova usa /start
       """
     And the bot should send nothing else
     And there should be no match for this chat
@@ -132,7 +132,7 @@ Feature: Starting and stopping a match
     When "@mario" sends "/stop" in "Altra squadra"
     Then the bot should send:
       """
-      Ho cancellato la partita.
+      Ho chiuso la partita. Per organizzarne una nuova usa /start
       """
     And there should be no match for this chat
     And there should be a match for "Calcetto"
@@ -151,7 +151,7 @@ Feature: Starting and stopping a match
     When "@mario" sends "/stop"
     Then the bot should send:
       """
-      Ho cancellato la partita.
+      Ho chiuso la partita. Per organizzarne una nuova usa /start
       """
     When "@mario" sends "/start"
     Then the bot should send the text "welcome" without a link preview
@@ -177,12 +177,12 @@ Feature: Starting and stopping a match
       /start - Crea una nuova partita 
       /setnumber - Imposta il numero di partecipanti 
       /setday - Imposta il giorno della partita 
-      /settime - Imposta l’orario della partita 
+      /settime - Imposta l'orario della partita 
       /setdescription - Imposta la descrizione sotto i partecipanti 
       /setpitch - Imposta il campo 
       /participants - Mostra i partecipanti della partita attuale 
       /teams - Mostra le squadre della partita attuale 
-      /stop - Rimuovi la partita 
+      /stop - Chiudi la partita 
       /help - Mostra la lista di comandi disponibili
 
       Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot

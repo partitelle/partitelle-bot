@@ -10,7 +10,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Prima di iniziare con le danze, avvia una partita, per farlo usa /start"
         )
     else:
-        answer = "Ho cancellato la partita."
+        answer = "Ho chiuso la partita. Per organizzarne una nuova usa /start"
         delete_match(chat_id)
     await context.bot.send_message(
         chat_id=update.effective_chat.id, parse_mode="markdown", text=answer

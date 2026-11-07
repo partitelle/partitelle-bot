@@ -86,16 +86,14 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     answer_is_escaped = True
 
             elif command == "togli":
-                to_be_removed = new_message[len(command) :].strip()
-                if not to_be_removed:
+                names = parse_names(new_message[len(command) :])
+                if not names:
                     answer = "Chi dovrei togliere? Scrivi: togli <nome>"
-                elif is_command_name(to_be_removed):
+                elif any(is_command_name(name) for name in names):
                     answer = command_name_answer
                 else:
-                    change = participation.remove_name(chat_id, to_be_removed)
-                    if change is not None:
-                        changes = [change]
-                    answer = replies.remove_reply(to_be_removed, change)
+                    changes = participation.remove_names(chat_id, names) or []
+                    answer = replies.remove_names_reply(names, changes)
                     answer_is_escaped = True
 
             elif command == "scambia":

@@ -116,15 +116,43 @@ def propose_reply(names: Sequence[str], changes: Sequence[Change], match: Match)
     return escape_markdown(". ".join(sentences))
 
 
+def remove_names_reply(names: Sequence[str], changes: Sequence[Change]) -> str:
+    """The answer to "togli <names>": one sentence per outcome. The question "who should I
+    remove?" only closes the answer when nobody was removed."""
+    by_outcome = _names_by_outcome(names, changes)
+    removed = by_outcome[Outcome.REMOVED]
+    removed_maybe = by_outcome[Outcome.REMOVED_MAYBE]
+    absent = by_outcome[Outcome.NOT_IN]
+    sentences = []
+    if removed:
+        sentences.append("Che vergogna, " + join_names(removed))
+    if removed_maybe:
+        sentences.append(
+            "Davvero? Ma "
+            + join_names(removed_maybe)
+            + (
+                ", ne siete proprio sicuri?"
+                if len(removed_maybe) > 1
+                else ", ne sei proprio sicuro?"
+            )
+        )
+    if absent:
+        sentence = join_names(absent) + (
+            " non sono nella lista" if len(absent) > 1 else " non è nella lista"
+        )
+        if not removed and not removed_maybe:
+            sentence += ". Chi dovrei togliere?"
+        sentences.append(sentence)
+    answer = ""
+    for sentence in sentences:
+        # a sentence that already ends with a question mark needs no full stop
+        answer += (" " if answer.endswith("?") else ". " if answer else "") + sentence
+    return escape_markdown(answer)
+
+
 def remove_reply(name: str, change: Change | None) -> str:
     """The answer to "togli <name>"."""
-    if change is not None and change.outcome == Outcome.REMOVED:
-        answer = "Che vergogna, " + name
-    elif change is not None and change.outcome == Outcome.REMOVED_MAYBE:
-        answer = "Davvero? Ma " + name + ", ne sei proprio sicuro?"
-    else:
-        answer = name + " non è nella lista. Chi dovrei togliere?"
-    return escape_markdown(answer)
+    return remove_names_reply([name], [change or Change(Outcome.NOT_IN, name)])
 
 
 def swap_reply(result: SwapResult | None) -> str:
