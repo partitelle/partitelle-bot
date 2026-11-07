@@ -532,7 +532,10 @@ def test_the_page_reserves_room_for_the_toast_above_the_last_rows(env):
     assert "root.style.setProperty('--toast-h'" in script
     assert "var(--toast-h, 0px)" in style
     # the room only grows while the toast shows and is released on scroll, so nothing moves when it hides
-    assert "setRoom(Math.max(toastEl.offsetHeight + 8, reserved))" in script
+    assert (
+        "setRoom(Math.max(Math.ceil(toastEl.getBoundingClientRect().height) + 9, reserved))"
+        in script
+    )
     assert "window.addEventListener('scroll'" in script
     assert "doc.scrollHeight - reserved - window.innerHeight" in script
 
