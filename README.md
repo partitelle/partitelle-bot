@@ -74,7 +74,7 @@ Keywords are plain messages, not commands. The message must start exactly with t
 
 ## mini app
 
-When the bot is configured with a Mini App (`PB_MINIAPP_SHORT_NAME`, see [CONTRIBUTING.md](CONTRIBUTING.md)), every summary carries an **apri la lista** button. It opens the list of that match inside Telegram, where members of the chat can join, propose themselves or leave, with the same rules and the same effects on the group as the chat keywords. The link is private to the match: a new `/start` creates a new link and the old one stops working. Without `PB_MINIAPP_SHORT_NAME` the feature is off: no button and no `/app` routes.
+When the bot is configured with a Mini App (`PB_MINIAPP_SHORT_NAME`, see [CONTRIBUTING.md](CONTRIBUTING.md)), every summary carries an **apri la lista** button. It opens the list of that match inside Telegram, where members of the chat can join, propose themselves or leave, add or propose other people by name, remove someone from the list, draw the teams and swap two players between teams, with the same rules and the same effects on the group as the chat keywords (when someone acts on others, the group message says who did it). Every member of the chat can use every action. The link is private to the match: a new `/start` creates a new link and the old one stops working. Without `PB_MINIAPP_SHORT_NAME` the feature is off: no button and no `/app` routes.
 
 ## development
 
