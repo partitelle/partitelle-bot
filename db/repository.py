@@ -233,15 +233,30 @@ def remove_participant(chat_id: int | str, participant: Participant) -> None:
             raise ValueError(f"{participant.name!r} is not in the list")
 
 
-def set_participant_maybe(chat_id: int | str, name: str, is_maybe: bool) -> None:
+# a row that has no user id gets the given one, unless another row of the match already has
+# it: that degrades to "no backfill" instead of a unique-index error; an id is never overwritten
+_BACKFILL_USER_ID = (
+    "telegram_user_id = COALESCE(telegram_user_id, CASE WHEN NOT EXISTS "
+    "(SELECT 1 FROM participant WHERE match_uuid = %(match)s "
+    "AND telegram_user_id = %(user_id)s) THEN %(user_id)s::bigint END)"
+)
+
+
+def set_participant_maybe(
+    chat_id: int | str,
+    name: str,
+    is_maybe: bool,
+    telegram_user_id: int | None = None,
+) -> None:
     """Flip a participant between confirmed and maybe; the player moves to the end of
     the list, as it joins the new state, and leaves its team (only confirmed players
-    can be in one)."""
+    can be in one). A `telegram_user_id` is saved on a row that has none."""
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         updated = conn.execute(
             "UPDATE participant SET status = %(new)s::participant_status, team = NULL, "
-            "position = (SELECT COALESCE(max(position), 0) + 1 FROM participant "
+            + _BACKFILL_USER_ID
+            + ", position = (SELECT COALESCE(max(position), 0) + 1 FROM participant "
             "WHERE match_uuid = %(match)s) "
             "WHERE match_uuid = %(match)s AND lower(display_name) = %(name)s "
             "AND status = %(old)s::participant_status",
@@ -250,6 +265,26 @@ def set_participant_maybe(chat_id: int | str, name: str, is_maybe: bool) -> None
                 "name": name.lower(),
                 "new": "maybe" if is_maybe else "confirmed",
                 "old": "confirmed" if is_maybe else "maybe",
+                "user_id": telegram_user_id,
+            },
+        ).rowcount
+        if updated != 1:
+            raise ValueError(f"{name!r} is not in the list")
+
+
+def link_participant_user(chat_id: int | str, name: str, telegram_user_id: int) -> None:
+    """Save the user id on a participant that has none. Raises ValueError when the
+    participant is not in the list."""
+    with connection() as conn, conn.transaction():
+        match_uuid = _lock_match(conn, chat_id)
+        updated = conn.execute(
+            "UPDATE participant SET "
+            + _BACKFILL_USER_ID
+            + " WHERE match_uuid = %(match)s AND lower(display_name) = %(name)s",
+            {
+                "match": match_uuid,
+                "name": name.lower(),
+                "user_id": telegram_user_id,
             },
         ).rowcount
         if updated != 1:

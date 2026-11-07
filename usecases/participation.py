@@ -8,6 +8,7 @@ from collections.abc import Callable
 from db.repository import (
     add_participant,
     get_match,
+    link_participant_user,
     remove_participant,
     save_teams,
     set_participant_maybe,
@@ -45,15 +46,17 @@ def _apply(chat_id: int, change: Change) -> None:
         case Outcome.ADDED:
             add_participant(chat_id, Participant(name, False, change.telegram_user_id))
         case Outcome.CONFIRMED:
-            set_participant_maybe(chat_id, name, False)
+            set_participant_maybe(chat_id, name, False, change.telegram_user_id)
         case Outcome.PROPOSED:
             add_participant(chat_id, Participant(name, True, change.telegram_user_id))
         case Outcome.MOVED_TO_MAYBE:
-            set_participant_maybe(chat_id, name, True)
+            set_participant_maybe(chat_id, name, True, change.telegram_user_id)
         case Outcome.REMOVED:
             remove_participant(chat_id, Participant(name))
         case Outcome.REMOVED_MAYBE:
             remove_participant(chat_id, Participant(name, True))
+        case Outcome.ALREADY_IN | Outcome.ALREADY_MAYBE if change.telegram_user_id:
+            link_participant_user(chat_id, name, change.telegram_user_id)
         case _:
             pass
 

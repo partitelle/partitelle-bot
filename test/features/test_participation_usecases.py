@@ -1,5 +1,6 @@
 """The join, maybe and leave use cases against the real test database."""
 
+from db import repository
 from db.repository import add_participant, create_match, get_match, save_teams
 from domain import Match, Outcome, Participant, Person, Teams
 from usecases import participation
@@ -105,3 +106,64 @@ def test_create_match_keeps_the_user_ids(db):
     match.participants.append(Participant("@anna", False, 7))
     create_match(match)
     assert get_match(CHAT).participants == [Participant("@anna", False, 7)]
+
+
+def ids():
+    return {p.name: p.telegram_user_id for p in get_match(CHAT).participants}
+
+
+def test_a_name_added_by_others_gets_the_id_when_the_person_joins(db):
+    start(db)
+    participation.add_names(CHAT, ["@anna"])
+    assert ids() == {"@anna": None}
+    assert participation.join(CHAT, Person("@anna", 7)).outcome == Outcome.ALREADY_IN
+    assert ids() == {"@anna": 7}
+
+
+def test_a_proposed_name_gets_the_id_when_the_person_confirms(db):
+    start(db)
+    participation.propose_names(CHAT, ["@anna"])
+    assert participation.join(CHAT, Person("@anna", 7)).outcome == Outcome.CONFIRMED
+    assert get_match(CHAT).participants == [Participant("@anna", False, 7)]
+
+
+def test_a_proposed_name_gets_the_id_when_the_person_says_maybe(db):
+    start(db)
+    participation.propose_names(CHAT, ["@anna"])
+    assert (
+        participation.maybe(CHAT, Person("@anna", 7)).outcome == Outcome.ALREADY_MAYBE
+    )
+    assert get_match(CHAT).participants == [Participant("@anna", True, 7)]
+
+
+def test_a_confirmed_name_gets_the_id_when_the_person_moves_to_maybe(db):
+    start(db)
+    participation.add_names(CHAT, ["@anna"])
+    assert (
+        participation.maybe(CHAT, Person("@anna", 7)).outcome == Outcome.MOVED_TO_MAYBE
+    )
+    assert get_match(CHAT).participants == [Participant("@anna", True, 7)]
+
+
+def test_a_row_owned_by_another_id_is_untouched(db):
+    start(db)
+    participation.join(CHAT, Person("@anna", 7))
+    assert participation.join(CHAT, Person("@anna", 9)).outcome == Outcome.NAME_TAKEN
+    assert participation.maybe(CHAT, Person("@anna", 9)).outcome == Outcome.NAME_TAKEN
+    assert ids() == {"@anna": 7}
+
+
+def test_names_added_by_others_never_get_an_id(db):
+    start(db, "bea?")
+    participation.add_names(CHAT, ["@anna", "bea"])
+    participation.propose_names(CHAT, ["@carlo", "@anna"])
+    assert ids() == {"bea": None, "@anna": None, "@carlo": None}
+
+
+def test_the_id_is_not_saved_when_another_row_already_has_it(db):
+    """A concurrent row with the same id degrades to no backfill, not a unique-index error."""
+    start(db)
+    db.set_players(CHAT, [("@old", False, 7), ("@new", True)])
+    repository.link_participant_user(CHAT, "@new", 7)
+    repository.set_participant_maybe(CHAT, "@new", False, telegram_user_id=7)
+    assert ids() == {"@old": 7, "@new": None}
