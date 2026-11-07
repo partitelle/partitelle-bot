@@ -245,10 +245,12 @@ class TestDecideWithIds(unittest.TestCase):
             decide_maybe(m, Person("@x", 8)), Change(Outcome.ALREADY_MAYBE, "@bea")
         )
         self.assertEqual(
-            decide_leave(m, Person("@new", 7)), Change(Outcome.REMOVED, "@old")
+            decide_leave(m, Person("@new", 7)),
+            Change(Outcome.REMOVED, "@old"),
         )
         self.assertEqual(
-            decide_leave(m, Person("@x", 8)), Change(Outcome.REMOVED_MAYBE, "@bea")
+            decide_leave(m, Person("@x", 8)),
+            Change(Outcome.REMOVED_MAYBE, "@bea"),
         )
 
     def test_a_name_held_by_another_user_is_taken_even_when_full(self):
@@ -377,3 +379,57 @@ class TestRemove(unittest.TestCase):
     def test_a_confirmed_row_wins_over_a_maybe_of_the_same_name(self):
         m = Match(1, [Participant("anna", True), Participant("Anna", False)], target=4)
         self.assertEqual(decide_remove(m, "anna"), Change(Outcome.REMOVED, "Anna"))
+
+
+class TestLinkingTheUserIdToAnExistingRow(unittest.TestCase):
+    def test_join_on_a_confirmed_row_without_an_id_carries_the_id(self):
+        self.assertEqual(
+            decide_join(match("anna"), Person("anna", 7)),
+            Change(Outcome.ALREADY_IN, "anna", telegram_user_id=7),
+        )
+
+    def test_join_on_a_maybe_row_without_an_id_carries_the_id(self):
+        self.assertEqual(
+            decide_join(match("anna?"), Person("anna", 7)),
+            Change(Outcome.CONFIRMED, "anna", telegram_user_id=7),
+        )
+
+    def test_maybe_on_a_maybe_row_without_an_id_carries_the_id(self):
+        self.assertEqual(
+            decide_maybe(match("anna?"), Person("anna", 7)),
+            Change(Outcome.ALREADY_MAYBE, "anna", telegram_user_id=7),
+        )
+
+    def test_maybe_on_a_confirmed_row_without_an_id_carries_the_id(self):
+        self.assertEqual(
+            decide_maybe(match("anna"), Person("anna", 7)),
+            Change(Outcome.MOVED_TO_MAYBE, "anna", telegram_user_id=7),
+        )
+
+    def test_a_row_that_has_an_id_never_gets_another(self):
+        m = Match(chat_id=1, participants=[Participant("anna", False, 7)], target=4)
+        self.assertEqual(
+            decide_join(m, Person("anna", 7)), Change(Outcome.ALREADY_IN, "anna")
+        )
+        self.assertEqual(
+            decide_maybe(m, Person("@new", 7)),
+            Change(Outcome.MOVED_TO_MAYBE, "anna"),
+        )
+
+    def test_a_person_without_an_id_links_nothing(self):
+        self.assertEqual(
+            decide_join(match("anna?"), Person("anna")),
+            Change(Outcome.CONFIRMED, "anna"),
+        )
+
+    def test_actions_on_names_never_carry_an_id(self):
+        self.assertEqual(
+            decide_add(match("anna?"), "anna"), Change(Outcome.CONFIRMED, "anna")
+        )
+        self.assertEqual(
+            decide_propose(match("anna"), "anna"),
+            Change(Outcome.MOVED_TO_MAYBE, "anna"),
+        )
+        self.assertEqual(
+            decide_remove(match("anna"), "anna"), Change(Outcome.REMOVED, "anna")
+        )

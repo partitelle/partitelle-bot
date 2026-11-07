@@ -1,5 +1,6 @@
 from domain.match import BAMBOO_PITCH, Match, Participant, TargetTooLow, Teams
 from domain.participation import (
+    Actor,
     Change,
     Outcome,
     Person,
@@ -14,6 +15,7 @@ from domain.participation import (
 from domain.reminder import ReminderCandidate, is_reminder_due, reminder_window
 
 __all__ = [
+    "Actor",
     "BAMBOO_PITCH",
     "Change",
     "Match",

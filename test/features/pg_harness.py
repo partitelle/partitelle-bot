@@ -165,6 +165,29 @@ class Database:
             )
             return dict(cur.fetchall())
 
+    def fetch_participant_uuids(self, chat_id):
+        """Display name -> participant_uuid of the active match."""
+        match_uuid = self._active_match_uuid(chat_id)
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT display_name, participant_uuid FROM participant WHERE match_uuid = %s",
+                [match_uuid],
+            )
+            return dict(cur.fetchall())
+
+    def fetch_events(self, chat_id):
+        """The participation log of a chat, oldest first (events of one transaction by name):
+        (action, actor, display name, Telegram user id, team, participant_uuid)."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT e.action::text, e.actor::text, e.display_name, e.telegram_user_id, "
+                "e.team::text, e.participant_uuid FROM participation_event e "
+                "JOIN chat c USING (chat_uuid) WHERE c.telegram_chat_id = %s "
+                "ORDER BY e.created_ts, e.display_name",
+                [chat_id],
+            )
+            return cur.fetchall()
+
     def set_teams(self, chat_id, black, white):
         """Teams are a property of the confirmed participants: they must be seeded first."""
         match_uuid = self._active_match_uuid(chat_id)

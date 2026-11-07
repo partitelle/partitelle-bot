@@ -186,7 +186,7 @@ Feature: Starting and stopping a match
       /help - Mostra la lista di comandi disponibili
 
       Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot
-      Come usiamo i tuoi dati: https://partitelle.com/privacy
+      Come usiamo i tuoi dati (informativa aggiornata il 7 novembre 2026): https://partitelle.com/privacy
       """
     And the bot should send nothing else
     And there should be no match for this chat

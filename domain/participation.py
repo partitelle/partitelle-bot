@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from domain.match import Match
+from domain.match import Match, Participant
 
 
 class Outcome(StrEnum):
@@ -20,6 +20,14 @@ class Outcome(StrEnum):
     # the name is on the list under another Telegram user (a username that changed
     # hands): nothing is written, as the name unique index would reject the row
     NAME_TAKEN = "name_taken"
+
+
+class Actor(StrEnum):
+    """Whose action it is, for the history of the list: a person acting on themselves or
+    someone acting on a name."""
+
+    SELF = "self"
+    OTHER = "other"
 
 
 _CHANGES_LIST = frozenset(
@@ -59,7 +67,8 @@ class Change:
     name: str
     reached_target: bool = False
     revokes_teams: bool = False
-    # the person's id, for the rows being created (ADDED, PROPOSED)
+    # the person's id: for the rows being created (ADDED, PROPOSED) and for an existing row
+    # that has none yet (added under their name by someone else), so it can be saved on it
     telegram_user_id: int | None = None
 
     @property
@@ -68,13 +77,25 @@ class Change:
         return self.outcome in _CHANGES_LIST
 
 
+def _id_to_save(found: Participant, person: Person) -> int | None:
+    """The person's id when the row they act on has none yet, else None."""
+    return person.telegram_user_id if found.telegram_user_id is None else None
+
+
 def decide_join(match: Match, person: Person) -> Change:
     found = match.find_person(person)
     if found is not None and not found.is_maybe:
-        return Change(Outcome.ALREADY_IN, found.name)
+        return Change(
+            Outcome.ALREADY_IN, found.name, telegram_user_id=_id_to_save(found, person)
+        )
     reached = match.confirmed_count + 1 == match.target
     if found is not None:
-        return Change(Outcome.CONFIRMED, found.name, reached_target=reached)
+        return Change(
+            Outcome.CONFIRMED,
+            found.name,
+            reached_target=reached,
+            telegram_user_id=_id_to_save(found, person),
+        )
     if match.name_taken_by_other(person):
         return Change(Outcome.NAME_TAKEN, person.name)
     if match.has_room:
@@ -91,9 +112,18 @@ def decide_maybe(match: Match, person: Person) -> Change:
     revokes = match.teams is not None
     found = match.find_person(person)
     if found is not None and found.is_maybe:
-        return Change(Outcome.ALREADY_MAYBE, found.name)
+        return Change(
+            Outcome.ALREADY_MAYBE,
+            found.name,
+            telegram_user_id=_id_to_save(found, person),
+        )
     if found is not None:
-        return Change(Outcome.MOVED_TO_MAYBE, found.name, revokes_teams=revokes)
+        return Change(
+            Outcome.MOVED_TO_MAYBE,
+            found.name,
+            revokes_teams=revokes,
+            telegram_user_id=_id_to_save(found, person),
+        )
     if match.name_taken_by_other(person):
         return Change(Outcome.NAME_TAKEN, person.name)
     if match.has_room:

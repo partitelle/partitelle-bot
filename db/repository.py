@@ -9,7 +9,7 @@ from uuid import UUID
 from psycopg import Connection, sql
 
 from db.connection import connection
-from domain import Match, Participant, ReminderCandidate, Teams
+from domain import Actor, Match, Participant, ReminderCandidate, Teams
 from domain.schedule import TIMEZONE
 
 _ACTIVE_MATCH_OF_CHAT = (
@@ -32,6 +32,36 @@ def _lock_match(conn: Connection[Any], chat_id: int | str) -> UUID:
     if row is None:
         raise LookupError(f"no match stored for chat {chat_id}")
     return row[0]  # type: ignore[no-any-return]
+
+
+def _log_event(
+    conn: Connection[Any],
+    match_uuid: UUID,
+    participant: tuple[UUID, str, int | None],
+    action: str,
+    actor: Actor | None,
+    team: str | None = None,
+) -> None:
+    """Append an event to the participation log, in the transaction of the change it
+    describes. The only code that touches participation_event, and it only inserts: the
+    table is append-only (a trigger refuses updates)."""
+    participant_uuid, display_name, telegram_user_id = participant
+    conn.execute(
+        "INSERT INTO participation_event (chat_uuid, match_uuid, participant_uuid, "
+        "telegram_user_id, display_name, action, actor, team) "
+        "VALUES ((SELECT chat_uuid FROM match WHERE match_uuid = %(match)s), %(match)s, "
+        "%(participant)s, %(user_id)s, %(name)s, %(action)s::participation_action, "
+        "%(actor)s::participation_actor, %(team)s::team_colour)",
+        {
+            "match": match_uuid,
+            "participant": participant_uuid,
+            "user_id": telegram_user_id,
+            "name": display_name,
+            "action": action,
+            "actor": actor,
+            "team": team,
+        },
+    )
 
 
 def _teams_from(rows: list[tuple[str, str, str | None]]) -> Teams | None:
@@ -142,7 +172,7 @@ def delete_match(chat_id: int | str) -> None:
 
 
 def save_teams(chat_id: int | str, teams: Teams | None) -> None:
-    """Persist the teams; None revokes them."""
+    """Persist the teams; None revokes them. Each player put in a team is logged."""
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         conn.execute(
@@ -152,11 +182,13 @@ def save_teams(chat_id: int | str, teams: Teams | None) -> None:
             updated = conn.execute(
                 "UPDATE participant SET team = %s::team_colour "
                 "WHERE match_uuid = %s AND lower(display_name) = %s "
-                "AND status = 'confirmed'",
+                "AND status = 'confirmed' "
+                "RETURNING participant_uuid, display_name, telegram_user_id",
                 [colour, match_uuid, name],
-            ).rowcount
-            if updated != 1:
+            ).fetchall()
+            if len(updated) != 1:
                 raise ValueError(f"{name!r} is not a confirmed participant")
+            _log_event(conn, match_uuid, updated[0], "team_assigned", None, colour)
 
 
 def _set_column(chat_id: int | str, column: str, value: Any) -> None:
@@ -196,64 +228,140 @@ def _validate_new_participant(participant: Participant) -> None:
         raise ValueError("invalid player name: " + repr(participant.name))
 
 
-def add_participant(chat_id: int | str, participant: Participant) -> None:
+def add_participant(
+    chat_id: int | str, participant: Participant, *, actor: Actor
+) -> None:
     """Append at the end of the list."""
     _validate_new_participant(participant)
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
-        conn.execute(
+        row = conn.execute(
             "INSERT INTO participant (match_uuid, display_name, status, position, "
             "telegram_user_id) "
             "SELECT %(match)s, %(name)s, %(status)s::participant_status, "
             "COALESCE(max(position), 0) + 1, %(user_id)s::bigint FROM participant "
-            "WHERE match_uuid = %(match)s",
+            "WHERE match_uuid = %(match)s "
+            "RETURNING participant_uuid, display_name, telegram_user_id",
             {
                 "match": match_uuid,
                 "name": participant.name,
                 "status": "maybe" if participant.is_maybe else "confirmed",
                 "user_id": participant.telegram_user_id,
             },
-        )
+        ).fetchone()
+        assert row is not None
+        action = "proposed" if participant.is_maybe else "added"
+        _log_event(conn, match_uuid, row, action, actor)
 
 
-def remove_participant(chat_id: int | str, participant: Participant) -> None:
-    """Raises ValueError when the participant is not in the list."""
+def remove_participant(
+    chat_id: int | str,
+    participant: Participant,
+    *,
+    actor: Actor,
+) -> None:
+    """Raises ValueError when the participant is not in the list. The history keeps only
+    the row's own user id (none when the row had none)."""
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         removed = conn.execute(
             "DELETE FROM participant WHERE match_uuid = %s "
-            "AND lower(display_name) = %s AND status = %s::participant_status",
+            "AND lower(display_name) = %s AND status = %s::participant_status "
+            "RETURNING participant_uuid, display_name, telegram_user_id",
             [
                 match_uuid,
                 participant.name.lower(),
                 "maybe" if participant.is_maybe else "confirmed",
             ],
-        ).rowcount
-        if removed != 1:
+        ).fetchall()
+        if len(removed) != 1:
             raise ValueError(f"{participant.name!r} is not in the list")
+        participant_uuid, display_name, user_id = removed[0]
+        action = "removed_maybe" if participant.is_maybe else "removed"
+        _log_event(
+            conn,
+            match_uuid,
+            (participant_uuid, display_name, user_id),
+            action,
+            actor,
+        )
 
 
-def set_participant_maybe(chat_id: int | str, name: str, is_maybe: bool) -> None:
+# a row that has no user id gets the given one, unless another row of the match already has
+# it: that degrades to "no backfill" instead of a unique-index error; an id is never overwritten
+_BACKFILL_USER_ID = (
+    "telegram_user_id = COALESCE(telegram_user_id, CASE WHEN NOT EXISTS "
+    "(SELECT 1 FROM participant WHERE match_uuid = %(match)s "
+    "AND telegram_user_id = %(user_id)s) THEN %(user_id)s::bigint END)"
+)
+
+
+def set_participant_maybe(
+    chat_id: int | str,
+    name: str,
+    is_maybe: bool,
+    *,
+    actor: Actor,
+    telegram_user_id: int | None = None,
+) -> None:
     """Flip a participant between confirmed and maybe; the player moves to the end of
     the list, as it joins the new state, and leaves its team (only confirmed players
-    can be in one)."""
+    can be in one). A `telegram_user_id` is saved on a row that has none."""
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         updated = conn.execute(
             "UPDATE participant SET status = %(new)s::participant_status, team = NULL, "
-            "position = (SELECT COALESCE(max(position), 0) + 1 FROM participant "
+            + _BACKFILL_USER_ID
+            + ", position = (SELECT COALESCE(max(position), 0) + 1 FROM participant "
             "WHERE match_uuid = %(match)s) "
             "WHERE match_uuid = %(match)s AND lower(display_name) = %(name)s "
-            "AND status = %(old)s::participant_status",
+            "AND status = %(old)s::participant_status "
+            "RETURNING participant_uuid, display_name, telegram_user_id",
             {
                 "match": match_uuid,
                 "name": name.lower(),
                 "new": "maybe" if is_maybe else "confirmed",
                 "old": "confirmed" if is_maybe else "maybe",
+                "user_id": telegram_user_id,
             },
-        ).rowcount
-        if updated != 1:
+        ).fetchall()
+        if len(updated) != 1:
             raise ValueError(f"{name!r} is not in the list")
+        action = "moved_to_maybe" if is_maybe else "confirmed"
+        _log_event(conn, match_uuid, updated[0], action, actor)
+
+
+def link_participant_user(
+    chat_id: int | str, name: str, telegram_user_id: int, *, actor: Actor
+) -> None:
+    """Save the user id on a participant that has none, and log it when it was saved.
+    Raises ValueError when the participant is not in the list."""
+    with connection() as conn, conn.transaction():
+        match_uuid = _lock_match(conn, chat_id)
+        updated = conn.execute(
+            "UPDATE participant p SET "
+            + _BACKFILL_USER_ID
+            + " FROM (SELECT participant_uuid, telegram_user_id AS before FROM participant "
+            "WHERE match_uuid = %(match)s AND lower(display_name) = %(name)s) old "
+            "WHERE p.participant_uuid = old.participant_uuid "
+            "RETURNING p.participant_uuid, p.display_name, p.telegram_user_id, old.before",
+            {
+                "match": match_uuid,
+                "name": name.lower(),
+                "user_id": telegram_user_id,
+            },
+        ).fetchall()
+        if len(updated) != 1:
+            raise ValueError(f"{name!r} is not in the list")
+        participant_uuid, display_name, user_id, before = updated[0]
+        if before is None and user_id is not None:
+            _log_event(
+                conn,
+                match_uuid,
+                (participant_uuid, display_name, user_id),
+                "user_linked",
+                actor,
+            )
 
 
 def find_reminder_candidates(

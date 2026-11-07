@@ -85,3 +85,19 @@ def test_no_sql_outside_db():
 def test_usecases_do_not_know_telegram():
     found = _importers(sorted((ROOT / "usecases").rglob("*.py")), {"telegram"})
     assert not found, f"usecases/ must not depend on telegram: {found}"
+
+
+def test_the_participation_log_is_only_ever_inserted_into():
+    # every application module: nothing but migrations/ and test/ may rewrite or erase the log
+    paths = sorted(
+        p
+        for p in ROOT.rglob("*.py")
+        if not {".venv", "migrations", "test"} & set(p.relative_to(ROOT).parts)
+    )
+    found = [
+        f"{p.relative_to(ROOT)} contains {needle!r}"
+        for p in paths
+        for needle in ("UPDATE participation_event", "DELETE FROM participation_event")
+        if needle.lower() in p.read_text().lower()
+    ]
+    assert not found, f"participation_event is append-only: {found}"

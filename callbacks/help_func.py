@@ -1,6 +1,8 @@
 from telegram import LinkPreviewOptions, Update
 from telegram.ext import ContextTypes
 
+from utils.constants import PRIVACY_NOTICE_UPDATED
+
 
 async def help_func(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = (
@@ -26,7 +28,8 @@ async def help_func(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stop - Chiudi la partita \n"
         "/help - Mostra la lista di comandi disponibili\n\n"
         "Il codice di questo bot è pubblico: https://github.com/partitelle/partitelle-bot\n"
-        "Come usiamo i tuoi dati: https://partitelle.com/privacy"
+        f"Come usiamo i tuoi dati (informativa aggiornata il {PRIVACY_NOTICE_UPDATED}): "
+        "https://partitelle.com/privacy"
     )
 
     await context.bot.send_message(
