@@ -6,6 +6,7 @@ from behaviours.edit_summary import edit_summary
 from behaviours.print_new_summary import print_new_summary
 from db.repository import get_match, set_summary_message_id
 from domain import Change
+from domain.target import TargetResult
 from utils.utils import format_summary
 
 
@@ -40,3 +41,19 @@ async def publish_changes(bot: Bot, chat_id: int, changes: Sequence[Change]) -> 
 async def publish_change(bot: Bot, chat_id: int, change: Change) -> None:
     """The group-side effects of one change."""
     await publish_changes(bot, chat_id, [change])
+
+
+async def publish_target_change(bot: Bot, chat_id: int, result: TargetResult) -> None:
+    """The group-side effects of a new target (the database writes already happened):
+    "teams cancelled" when they were, the summary, "let's play" when the list is full."""
+    if result.revokes_teams:
+        await bot.send_message(
+            chat_id=chat_id, parse_mode="markdown", text="*SQUADRE ANNULLATE*"
+        )
+    await refresh_summary(bot, chat_id)
+    if result.reached_target:
+        await bot.send_message(
+            chat_id=chat_id,
+            parse_mode="markdown",
+            text="🚀 *SI GIOCA* 🚀 facciamo le squadre? /teams 😎",
+        )
