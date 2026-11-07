@@ -120,7 +120,7 @@ The bot uses the async API of python-telegram-bot (handlers are `async def` and 
    gh workflow run promote.yml -f version=2.0.0   # override the version
    ```
 
-   The run then waits for the maintainer's approval in the `production-deploy` environment (Actions run page > Review deployments > Approve), including for a dry run.
+   The `production-deploy` environment has no required reviewer and only allows the `main` branch, so the run deploys as soon as it starts, including a dry run.
 
 What "Promote to prod" does:
 
@@ -136,7 +136,7 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 ### One-time setup (owner)
 
 - Render: turn OFF auto-deploy on both services and set `PYTHON_VERSION=3.12.12` (it must match `.python-version`).
-- Environment `production-deploy` (required reviewer: the maintainer; deployment branches: `main` only) with the secrets `RENDER_SERVICE_ID` and `RENDER_API_KEY` (prod).
+- Environment `production-deploy` (no required reviewer; deployment branches: `main` only) with the secrets `RENDER_SERVICE_ID` and `RENDER_API_KEY` (prod).
 - Repo Actions secrets (staging): `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
 - Secret `AUTOMERGE_TOKEN` (Dependabot secret, not an Actions one): fine-grained PAT limited to this repo with `Contents`, `Pull requests` and `Workflows` read and write (`Workflows` is needed to merge GitHub Actions bumps and push to their branches), no expiration, used by `dependabot-auto-merge.yml`. It is a PAT because merges made with `GITHUB_TOKEN` do not trigger the `push` workflow on `main`, so staging would not be deployed. The workflow also approves patch and minor Dependabot PRs with it, so the token owner must be a code owner (`.github/CODEOWNERS`) and those approvals show under their account.
 - Branch protection on `main` requires branches to be up to date, so when `main` moves a maintainer presses "Update branch" on an open Dependabot PR; the approval stays (stale reviews are not dismissed) and auto-merge completes once the checks pass again.
