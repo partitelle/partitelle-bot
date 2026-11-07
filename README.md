@@ -20,7 +20,7 @@ It is a Python 3.12 project built on the async API of [python-telegram-bot](http
 3. Everybody writes plain chat keywords (see below) to join. The bot prints the summary the first time and then edits it in place; `/participants` shows it again on demand.
 4. Once the confirmed players reach the target, the bot announces it and you can run `/teams` to get a black and a white team.
 5. Teams can be adjusted with `scambia <name 1> con <name 2>`. Removing a player or marking one as maybe revokes the teams (the bot says so); `/teams` generates them again.
-6. Two hours after the match starts, the bot asks the group whether everybody paid, and pins the message if it can.
+6. The day after the match, at no exact time, the bot asks the group whether everybody paid, and pins the message if it can. The reminder state is stored in the database, and a daily scheduled job calls an authenticated endpoint that sends it.
 
 The summary looks like this (the pitch and the description are editable):
 
