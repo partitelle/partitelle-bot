@@ -1,12 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
-from behaviours.edit_summary import edit_summary
-from behaviours.print_new_summary import print_new_summary
-from db.repository import set_target, set_summary_message_id
-from db.repository import get_match, save_teams
+from behaviours.publish_change import publish_target_change
+from db.repository import get_match
 from domain import TargetTooLow
-from utils.utils import get_sender_mention, format_summary
+from domain.target import TargetOutcome
+from usecases.target import change_target
+from utils.utils import get_sender_mention
 
 
 def target_too_low_answer(refusal: TargetTooLow, current_target: int) -> str:
@@ -51,58 +51,29 @@ async def set_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 chosen_number_str = context.args[0]
                 sender = get_sender_mention(update)
-                participants_num = match.confirmed_count
 
                 if chosen_number_str.isnumeric():
                     chosen_number = int(chosen_number_str)
-                    if chosen_number <= 0 or chosen_number > 40:
+                    result = change_target(chat_id, chosen_number)
+                    if result is None:
+                        # stopped between the two reads: nothing to change
+                        raise LookupError("the match was stopped")
+                    if result.outcome == TargetOutcome.INVALID:
                         answer = "Non è un numero valido di partecipanti 🌚"
-                    elif chosen_number < 2:
+                    elif result.outcome == TargetOutcome.TOO_SMALL:
                         answer = "Il numero che hai inserito non va bene 👎"
-                    elif (refusal := match.check_new_target(chosen_number)) is not None:
-                        answer = target_too_low_answer(refusal, match.target)
+                    elif result.outcome == TargetOutcome.TOO_LOW:
+                        answer = target_too_low_answer(
+                            result.refusal, result.previous_target
+                        )
                     else:
-                        if match.teams is not None:
-                            save_teams(chat_id, None)
-                            answer = "*SQUADRE ANNULLATE*"
-                            await context.bot.send_message(
-                                chat_id=update.effective_chat.id,
-                                parse_mode="markdown",
-                                text=answer,
-                            )
-
-                        set_target(chat_id, chosen_number)
                         answer = (
                             "Ok, "
                             + sender
                             + "! Ho impostato il numero di partecipanti a "
                             + str(chosen_number)
                         )
-                        reached_target = (
-                            bool(match.participants)
-                            and participants_num == chosen_number
-                        )
-                        match = get_match(chat_id)
-                        current_situation = format_summary(match)
-                        if match.summary_message_id is None:
-                            msg = await print_new_summary(
-                                current_situation, context.bot, update.effective_chat.id
-                            )
-                            set_summary_message_id(chat_id, msg.message_id)
-                        else:
-                            await edit_summary(
-                                current_situation,
-                                match.summary_message_id,
-                                context.bot,
-                                update.effective_chat.id,
-                            )
-
-                        if reached_target:
-                            await context.bot.send_message(
-                                chat_id=update.effective_chat.id,
-                                parse_mode="markdown",
-                                text="🚀 *SI GIOCA* 🚀 facciamo le squadre? /teams 😎",
-                            )
+                        await publish_target_change(context.bot, chat_id, result)
                 else:
                     answer = sender + ", quello ti sembra un numero? 😂"
 
