@@ -1569,6 +1569,287 @@ Feature: Managing the participants
       | field | value  |
       | teams | (none) |
 
+  Scenario: togli luca, anna answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, anna"
+    Then the bot should send:
+      """
+      Che vergogna, luca e anna
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. bea ❓
+      2. ivo ❓
+      3. ❌
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | bea (maybe), ivo (maybe) |
+
+  Scenario: togli bea, ivo answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli bea, ivo"
+    Then the bot should send:
+      """
+      Davvero? Ma bea e ivo, ne siete proprio sicuri?
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. luca ✅
+      2. anna ✅
+      3. ❌
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | luca, anna |
+
+  Scenario: togli carlo, dario answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli carlo, dario"
+    Then the bot should send:
+      """
+      carlo e dario non sono nella lista. Chi dovrei togliere?
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value                                |
+      | players | luca, anna, bea (maybe), ivo (maybe) |
+
+  Scenario: togli luca, bea answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, bea"
+    Then the bot should send:
+      """
+      Che vergogna, luca. Davvero? Ma bea, ne sei proprio sicuro?
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. anna ✅
+      2. ivo ❓
+      3. ❌
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | anna, ivo (maybe) |
+
+  Scenario: togli luca, carlo answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, carlo"
+    Then the bot should send:
+      """
+      Che vergogna, luca. carlo non è nella lista
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. anna ✅
+      2. bea ❓
+      3. ivo ❓
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | anna, bea (maybe), ivo (maybe) |
+
+  Scenario: togli luca, carlo, dario answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, carlo, dario"
+    Then the bot should send:
+      """
+      Che vergogna, luca. carlo e dario non sono nella lista
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. anna ✅
+      2. bea ❓
+      3. ivo ❓
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | anna, bea (maybe), ivo (maybe) |
+
+  Scenario: togli bea, carlo answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli bea, carlo"
+    Then the bot should send:
+      """
+      Davvero? Ma bea, ne sei proprio sicuro? carlo non è nella lista
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. luca ✅
+      2. anna ✅
+      3. ivo ❓
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | luca, anna, ivo (maybe) |
+
+  Scenario: togli luca, anna, bea, carlo answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, anna, bea, carlo"
+    Then the bot should send:
+      """
+      Che vergogna, luca e anna. Davvero? Ma bea, ne sei proprio sicuro? carlo non è nella lista
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. ivo ❓
+      2. ❌
+      3. ❌
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | ivo (maybe) |
+
+  Scenario: togli luca, luca answers one sentence per outcome
+    Given a match was started
+    And the match target is 6
+    And the match has the players "luca, anna, bea (maybe), ivo (maybe)"
+    When "@mario" sends "togli luca, luca"
+    Then the bot should send:
+      """
+      Che vergogna, luca
+      """
+    And the bot should send:
+      """
+      {header}
+
+      1. anna ✅
+      2. bea ❓
+      3. ivo ❓
+      4. ❌
+      5. ❌
+      6. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value |
+      | players | anna, bea (maybe), ivo (maybe) |
+
+  Scenario: togli with several names revokes the teams once
+    Given a match was started
+    And the match target is 4
+    And the match has the players "anna, bea, carlo, dino"
+    And the match has the black team "anna, bea" and the white team "carlo, dino"
+    When "@mario" sends "togli bea, carlo"
+    Then the bot should send:
+      """
+      Che vergogna, bea e carlo
+      """
+    And the bot should send the text "teams revoked"
+    And the bot should send:
+      """
+      {header}
+
+      1. anna ✅
+      2. dino ✅
+      3. ❌
+      4. ❌
+
+      {footer}
+      """
+    And the bot should pin the last message
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value      |
+      | players | anna, dino |
+      | teams   | (none)     |
+
+  Scenario: A /command among the names of togli refuses all of them
+    Given a match was started
+    And the match target is 4
+    And the match has the players "anna, luca"
+    When "@mario" sends "togli luca, /start"
+    Then the bot should send:
+      """
+      Un nome non può iniziare con /
+      """
+    And the bot should send nothing else
+    And the match should have:
+      | field   | value      |
+      | players | anna, luca |
+
   Scenario: A /command written after togli is refused, even if an old entry with that name exists
     Given a match was started
     And the match target is 4

@@ -41,7 +41,7 @@ Feature: Match settings
       """
     And the text "welcome" is:
       """
-      Ciao bestie 😎, chi c'è per il prossimo calcetto? 
+      Ciao bestie 😎, chi c'è per la prossima partita? 
 
       - se sei in forse scrivi _proponimi_, 
       - se vuoi proporre qualcuno scrivi _proponi <nome>_, 

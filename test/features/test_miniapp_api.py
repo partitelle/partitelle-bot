@@ -525,6 +525,21 @@ def test_static_files_are_served_with_nosniff(env):
     assert "javascript" in response.headers["content-type"]
 
 
+def test_the_page_reserves_room_for_the_toast_above_the_last_rows(env):
+    # there is no browser here: pin the contract between the script and the style
+    script = env.client.get("/app/static/app.js").text
+    style = env.client.get("/app/static/app.css").text
+    assert "root.style.setProperty('--toast-h'" in script
+    assert "var(--toast-h, 0px)" in style
+    # the room only grows while the toast shows and is released on scroll, so nothing moves when it hides
+    assert (
+        "setRoom(Math.max(Math.ceil(toastEl.getBoundingClientRect().height) + 9, reserved))"
+        in script
+    )
+    assert "window.addEventListener('scroll'" in script
+    assert "doc.scrollHeight - reserved - window.innerHeight" in script
+
+
 def test_the_page_is_the_real_one_and_has_no_inline_code_or_style(env):
     text = env.client.get("/app").text
     assert "/app/static/app.js" in text
