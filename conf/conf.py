@@ -22,6 +22,11 @@ if not db_schema:
 webhook_secret = os.getenv("PB_WEBHOOK_SECRET")
 # Optional secret (bearer token) for the jobs endpoints of the web app; when unset or empty they are disabled
 jobs_secret = os.getenv("PB_JOBS_SECRET")
+# Optional credentials for the migrations (`python -m db.migrate`), e.g. a role that owns the schema while the
+# bot itself runs with a role that only has data permissions. Both or none: when unset, migrations use PB_DB_USER/PB_DB_PASSWORD.
+migrate_user = os.getenv("PB_DB_MIGRATE_USER")
+migrate_password = os.getenv("PB_DB_MIGRATE_PASSWORD")
+
 # Mini App (the list of a match inside Telegram). `PB_MINIAPP_SHORT_NAME` is the short name given to the
 # Mini App in BotFather; when unset or empty the feature is off (no button, no /app routes).
 miniapp_short_name = os.getenv("PB_MINIAPP_SHORT_NAME") or None

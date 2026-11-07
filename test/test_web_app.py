@@ -302,3 +302,107 @@ def test_jobs_endpoint_has_no_cors_headers(application):
     assert response.status_code == 200
     assert "access-control-allow-origin" not in response.headers
     assert "access-control-allow-methods" not in response.headers
+
+
+class Clock:
+    def __init__(self):
+        self.value = 1000.0
+
+    def __call__(self):
+        return self.value
+
+
+class CountingCheck:
+    def __init__(self, fail=False):
+        self.calls = 0
+        self.fail = fail
+
+    async def __call__(self):
+        self.calls += 1
+        if self.fail:
+            raise DatabaseUnavailable("down")
+
+
+def cached_client(application, check, clock):
+    return TestClient(
+        create_app(application, SECRET, check, "abc1234", monotonic=clock)
+    )
+
+
+def test_health_cache_windows():
+    import web.app as web_app
+
+    assert (web_app.HEALTH_CACHE_OK, web_app.HEALTH_CACHE_FAILED) == (20, 5)
+
+
+def test_health_checks_the_database_once_within_the_window(application):
+    check, clock = CountingCheck(), Clock()
+    api = cached_client(application, check, clock)
+    bodies = []
+    for _ in range(5):
+        response = api.get("/health")
+        assert response.status_code == 200
+        bodies.append(response.json())
+        clock.value += 3  # 15 s in total, inside the 20 s window
+    assert check.calls == 1
+    assert bodies == [{"status": "ok", "version": "abc1234", "database": "ok"}] * 5
+
+
+def test_health_checks_again_after_the_window(application):
+    check, clock = CountingCheck(), Clock()
+    api = cached_client(application, check, clock)
+    api.get("/health")
+    clock.value += 19.9
+    api.get("/health")
+    assert check.calls == 1
+    clock.value += 0.2
+    assert api.get("/health").status_code == 200
+    assert check.calls == 2
+
+
+def test_health_caches_a_failure_for_a_shorter_window(application, caplog):
+    check, clock = CountingCheck(fail=True), Clock()
+    api = cached_client(application, check, clock)
+    with caplog.at_level(logging.WARNING):
+        assert api.get("/health").status_code == 503
+        clock.value += 4.9
+        response = api.get("/health")
+    assert response.status_code == 503
+    assert response.json()["database"] == "unavailable"
+    assert check.calls == 1
+    assert caplog.text.count("the database is unavailable") == 1
+    clock.value += 0.2
+    api.get("/health")
+    assert check.calls == 2
+
+
+def test_health_notices_a_recovery_after_the_failure_window(application):
+    check, clock = CountingCheck(fail=True), Clock()
+    api = cached_client(application, check, clock)
+    assert api.get("/health").status_code == 503
+    check.fail = False
+    clock.value += 5.1
+    assert api.get("/health").status_code == 200
+    assert check.calls == 2
+
+
+def test_concurrent_health_requests_share_one_database_check(application):
+    import httpx
+
+    clock = Clock()
+    calls = []
+
+    async def slow_check():
+        calls.append(1)
+        await asyncio.sleep(0.05)
+
+    app = create_app(application, SECRET, slow_check, "abc1234", monotonic=clock)
+
+    async def run():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as api:
+            return await asyncio.gather(*(api.get("/health") for _ in range(10)))
+
+    responses = asyncio.run(run())
+    assert [r.status_code for r in responses] == [200] * 10
+    assert len(calls) == 1

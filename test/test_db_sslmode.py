@@ -95,3 +95,43 @@ def test_the_migration_connections_use_the_configured_sslmode(monkeypatch, mode)
     monkeypatch.setattr(db_migrate.psycopg, "connect", fake_connect)
     db_migrate.create_schema("staging")
     assert captured["sslmode"] == mode
+
+
+@pytest.mark.parametrize("mode", ["require", "disable"])
+def test_the_migration_credentials_connections_use_the_configured_sslmode(
+    monkeypatch, mode
+):
+    """With PB_DB_MIGRATE_USER/PASSWORD set, both migration connections still carry the sslmode."""
+    monkeypatch.setattr(db_migrate, "db_sslmode", mode)
+    monkeypatch.setattr(db_migrate, "host", "db.example")
+    monkeypatch.setattr(db_migrate, "database", "partitelle")
+    monkeypatch.setattr(db_migrate, "port", "5432")
+    monkeypatch.setattr(db_migrate, "user", "runtime_user")
+    monkeypatch.setattr(db_migrate, "password", "runtime-pw")
+    monkeypatch.setattr(db_migrate, "migrate_user", "owner_user")
+    monkeypatch.setattr(db_migrate, "migrate_password", "owner-pw")
+    assert db_migrate.build_uri("staging") == (
+        "postgresql+psycopg://owner_user:owner-pw@db.example:5432/partitelle"
+        f"?schema=staging&sslmode={mode}"
+    )
+
+    captured = {}
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, query):
+            pass
+
+    def fake_connect(**kwargs):
+        captured.update(kwargs)
+        return FakeConnection()
+
+    monkeypatch.setattr(db_migrate.psycopg, "connect", fake_connect)
+    db_migrate.create_schema("staging")
+    assert captured["user"] == "owner_user"
+    assert captured["sslmode"] == mode

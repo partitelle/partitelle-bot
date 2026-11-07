@@ -24,10 +24,10 @@ uv sync
 
 This installs the python version specified in the `.python-version` file and all the dependencies (including the dev ones) in a local `.venv`.
 
-If you change the dependencies in `pyproject.toml`, run `uv lock` and regenerate `requirements.txt` (used by Render):
+If you change the dependencies in `pyproject.toml`, run `uv lock` and regenerate `requirements.txt` (used by Render, with hashes: pip installs it in hash-checking mode):
 
 ```bash
-uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt
+uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
 ```
 
 Code is formatted and linted with [ruff](https://docs.astral.sh/ruff/) (`ruff format` replaces black); CI runs both checks:
@@ -58,6 +58,7 @@ Rules:
 - staging and prod migrate at their own deploys, so a migration must be backward compatible with the code currently deployed in the other environment (e.g. add nullable columns, do not drop or rename columns in the same release)
 - `PB_DB_SCHEMA` is mandatory: the bot and `db.migrate` refuse to start without it
 - database connections require TLS by default (`PB_DB_SSLMODE=require`); the local docker compose database has none, so `default.env` sets `PB_DB_SSLMODE=disable` and the test setup does the same
+- migrations use `PB_DB_USER`/`PB_DB_PASSWORD`, unless `PB_DB_MIGRATE_USER` and `PB_DB_MIGRATE_PASSWORD` are both set (optional, see [docs/neon-db.md](docs/neon-db.md))
 - the Neon database setup, env vars and backups are described in [docs/neon-db.md](docs/neon-db.md)
 
 On Render, the start command of both services must be:
@@ -104,7 +105,7 @@ The bot uses the async API of python-telegram-bot (handlers are `async def` and 
 
 ## Dependencies
 
-[Dependabot](.github/dependabot.yml) checks `uv` and GitHub Actions dependencies every Monday. Patch and minor updates are grouped in one PR, approved by the workflow and auto-merged once CI is green (they only reach staging; prod follows with a manual `Promote to prod` run on a maintainer's OK). Major updates get their own PR and are reviewed manually. Dependabot does not touch `requirements.txt`, so the workflow regenerates it on every Dependabot PR (majors included) and CI fails if it is out of sync with `uv.lock`. Auto-merge needs the `AUTOMERGE_TOKEN` Dependabot secret (see the one-time setup below).
+[Dependabot](.github/dependabot.yml) checks `uv` and GitHub Actions dependencies every Monday. Patch and minor `uv` updates are grouped in one PR, approved by the workflow and auto-merged once CI is green (they only reach staging; prod follows with a manual `Promote to prod` run on a maintainer's OK). Major `uv` updates and all GitHub Actions updates are never approved or merged by the workflow: they are reviewed by hand. Every `uses:` in the workflows is pinned to a full commit SHA with the version in a trailing comment, and Dependabot bumps both. Dependabot does not touch `requirements.txt`, so the workflow regenerates it on every `uv` Dependabot PR (majors included) and CI fails if it is out of sync with `uv.lock`. Auto-merge needs the `AUTOMERGE_TOKEN` Dependabot secret (see the one-time setup below).
 
 ## Release & deploy flow
 
@@ -118,6 +119,8 @@ The bot uses the async API of python-telegram-bot (handlers are `async def` and 
    gh workflow run promote.yml -f dry_run=true    # only show version and release notes
    gh workflow run promote.yml -f version=2.0.0   # override the version
    ```
+
+   The run then waits for the maintainer's approval in the `production-deploy` environment (Actions run page > Review deployments > Approve), including for a dry run.
 
 What "Promote to prod" does:
 
@@ -133,7 +136,8 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 ### One-time setup (owner)
 
 - Render: turn OFF auto-deploy on both services and set `PYTHON_VERSION=3.12.12` (it must match `.python-version`).
-- Secrets: `RENDER_SERVICE_ID`, `RENDER_API_KEY`, `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
+- Environment `production-deploy` (required reviewer: the maintainer; deployment branches: `main` only) with the secrets `RENDER_SERVICE_ID` and `RENDER_API_KEY` (prod).
+- Repo Actions secrets (staging): `RENDER_TEST_SERVICE_ID`, `RENDER_TEST_API_KEY`.
 - Secret `AUTOMERGE_TOKEN` (Dependabot secret, not an Actions one): fine-grained PAT limited to this repo with `Contents`, `Pull requests` and `Workflows` read and write (`Workflows` is needed to merge GitHub Actions bumps and push to their branches), no expiration, used by `dependabot-auto-merge.yml`. It is a PAT because merges made with `GITHUB_TOKEN` do not trigger the `push` workflow on `main`, so staging would not be deployed. The workflow also approves patch and minor Dependabot PRs with it, so the token owner must be a code owner (`.github/CODEOWNERS`) and those approvals show under their account.
 - Branch protection on `main` requires branches to be up to date, so when `main` moves a maintainer presses "Update branch" on an open Dependabot PR; the approval stays (stale reviews are not dismissed) and auto-merge completes once the checks pass again.
 
@@ -141,9 +145,9 @@ Deploys call the Render API with an explicit commit SHA (`.github/scripts/render
 
 `.github/workflows/payment-reminder.yml` runs the daily payment reminders. It is the only scheduled workflow besides Dependabot. It runs at 08:17 UTC (09:17 in Rome in winter, 10:17 in summer, after the reminder window that ends at 08:00 Rome time) and always targets prod; a manual run (Actions > "Payment reminders" > Run workflow, or `gh workflow run payment-reminder.yml -f target=test`) can also target the test bot.
 
-`.github/scripts/run-payment-reminders.sh <base-url>` wakes the host (`GET /health` every 20 s, up to 5 minutes, until 200), then calls `POST /jobs/payment-reminders` with `Authorization: Bearer <secret>`. It retries up to 3 times on 503 or no answer, prints the `sent`/`skipped`/`failed` counts (also in the run summary) and fails on any other non-2xx status. A 404 means the host has no `PB_JOBS_SECRET`.
+`.github/scripts/run-payment-reminders.sh <base-url>` wakes the host (`GET /health` every 20 s, up to 5 minutes, until 200), then calls `POST /jobs/payment-reminders` with `Authorization: Bearer <secret>`. It retries up to 3 times on 503 or no answer, prints only the HTTP status and the `sent`/`skipped`/`failed` counts (also in the run summary), never the response body, and fails on any other non-2xx status. A 404 means the host has no `PB_JOBS_SECRET`.
 
-Setup (owner): generate a long random value per environment and set it both as the host env var `PB_JOBS_SECRET` (Render, prod and test services) and as the repo Actions secret `JOBS_SECRET_PROD` / `JOBS_SECRET_TEST` (same value as the matching host). Until a secret is set, the workflow prints a warning and passes.
+Setup (owner): generate a long random value per environment and set it both as the host env var `PB_JOBS_SECRET` (Render, prod and test services) and as the secret `JOBS_SECRET_PROD` in the `production-jobs` environment (`main` only, no reviewer) or the repo Actions secret `JOBS_SECRET_TEST` (same value as the matching host). If the secret is missing the run fails.
 
 ## License
 
