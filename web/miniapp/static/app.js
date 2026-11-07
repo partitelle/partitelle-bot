@@ -93,16 +93,29 @@
   }
   function pauseSnack() { if (snackOn) clearTimeout(toastTimer); }
   function resumeSnack() { if (snackOn) snackStart(); }
-  // keep the last rows above the toast: reserve its height (plus a gap) at the bottom of the page while it shows
+  // keep the last rows above the toast: reserve its height (plus a gap) at the bottom of the page while it shows.
+  // The room only grows while the toast shows and is released once that cannot move anything on screen.
+  var reserved = 0;
+  function setRoom(px) {
+    reserved = px;
+    root.style.setProperty('--toast-h', px + 'px');
+  }
   function reserveToastRoom() {
-    var atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
-    var room = toastEl.classList.contains('show') ? toastEl.offsetHeight + 8 : 0;
-    root.style.setProperty('--toast-h', room + 'px');
-    if (room && atEnd) window.scrollTo(0, document.documentElement.scrollHeight);
+    var doc = document.documentElement;
+    if (toastEl.classList.contains('show')) {
+      var atEnd = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
+      setRoom(Math.max(toastEl.offsetHeight + 8, reserved));
+      if (atEnd) window.scrollTo(0, doc.scrollHeight);
+    } else if (reserved > 0 && window.scrollY <= Math.max(0, doc.scrollHeight - reserved - window.innerHeight)) {
+      setRoom(0);
+    }
   }
   if (typeof MutationObserver === 'function') {
     new MutationObserver(reserveToastRoom).observe(toastEl, { attributes: true, attributeFilter: ['class'], childList: true, characterData: true, subtree: true });
   }
+  window.addEventListener('scroll', function () {
+    if (reserved && !toastEl.classList.contains('show')) reserveToastRoom();
+  }, { passive: true });
   toastEl.addEventListener('mouseenter', pauseSnack);
   toastEl.addEventListener('focusin', pauseSnack);
   toastEl.addEventListener('mouseleave', function () { if (!toastEl.contains(document.activeElement)) resumeSnack(); });
