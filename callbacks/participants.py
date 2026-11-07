@@ -19,5 +19,7 @@ async def participants(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     current_situation = format_summary(match)
-    msg = await print_new_summary(current_situation, update, context)
+    msg = await print_new_summary(
+        current_situation, context.bot, update.effective_chat.id
+    )
     set_summary_message_id(chat_id, msg.message_id)

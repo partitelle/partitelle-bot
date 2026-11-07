@@ -23,3 +23,11 @@ jobs_secret = os.getenv("PB_JOBS_SECRET")
 # bot itself runs with a role that only has data permissions. Both or none: when unset, migrations use PB_DB_USER/PB_DB_PASSWORD.
 migrate_user = os.getenv("PB_DB_MIGRATE_USER")
 migrate_password = os.getenv("PB_DB_MIGRATE_PASSWORD")
+
+# Mini App (the list of a match inside Telegram). `PB_MINIAPP_SHORT_NAME` is the short name given to the
+# Mini App in BotFather; when unset or empty the feature is off (no button, no /app routes).
+miniapp_short_name = os.getenv("PB_MINIAPP_SHORT_NAME") or None
+# Optional: the bot's username for the link; when unset it is read from Telegram (`bot.username`)
+bot_username = os.getenv("PB_BOT_USERNAME") or None
+# Seconds the data Telegram hands to the Mini App stays valid
+miniapp_max_age = int(os.getenv("PB_MINIAPP_MAX_AGE") or 3600)
