@@ -1,6 +1,7 @@
 """Reads and writes matches: the only place that knows the SQL and how a match maps onto
 the chat, match and participant tables."""
 
+import secrets
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -54,21 +55,22 @@ def get_match(chat_id: int | str) -> Match | None:
             return None
         match_uuid, starts, target, description, pitch, summary_message_id = row
         participants = conn.execute(
-            "SELECT display_name, status, team FROM participant "
+            "SELECT display_name, status, team, telegram_user_id FROM participant "
             "WHERE match_uuid = %s ORDER BY position",
             [match_uuid],
         ).fetchall()
     return Match(
         chat_id=int(chat_id),
         participants=[
-            Participant(name, status == "maybe") for name, status, _ in participants
+            Participant(name, status == "maybe", user_id)
+            for name, status, _, user_id in participants
         ],
         starts=starts.astimezone(TIMEZONE),
         target=target,
         description=description,
         pitch=pitch,
         summary_message_id=summary_message_id,
-        teams=_teams_from(participants),
+        teams=_teams_from([row[:3] for row in participants]),
     )
 
 
@@ -113,8 +115,9 @@ def create_match(match: Match) -> None:
         for position, participant in enumerate(match.participants, start=1):
             _validate_new_participant(participant)
             conn.execute(
-                "INSERT INTO participant (match_uuid, display_name, status, position, team) "
-                "VALUES (%s, %s, %s::participant_status, %s, %s::team_colour)",
+                "INSERT INTO participant (match_uuid, display_name, status, position, team, "
+                "telegram_user_id) "
+                "VALUES (%s, %s, %s::participant_status, %s, %s::team_colour, %s)",
                 [
                     row[0],
                     participant.name,
@@ -123,6 +126,7 @@ def create_match(match: Match) -> None:
                     None
                     if participant.is_maybe
                     else colours.get(participant.name.lower()),
+                    participant.telegram_user_id,
                 ],
             )
 
@@ -198,13 +202,16 @@ def add_participant(chat_id: int | str, participant: Participant) -> None:
     with connection() as conn, conn.transaction():
         match_uuid = _lock_match(conn, chat_id)
         conn.execute(
-            "INSERT INTO participant (match_uuid, display_name, status, position) "
+            "INSERT INTO participant (match_uuid, display_name, status, position, "
+            "telegram_user_id) "
             "SELECT %(match)s, %(name)s, %(status)s::participant_status, "
-            "COALESCE(max(position), 0) + 1 FROM participant WHERE match_uuid = %(match)s",
+            "COALESCE(max(position), 0) + 1, %(user_id)s::bigint FROM participant "
+            "WHERE match_uuid = %(match)s",
             {
                 "match": match_uuid,
                 "name": participant.name,
                 "status": "maybe" if participant.is_maybe else "confirmed",
+                "user_id": participant.telegram_user_id,
             },
         )
 
@@ -296,3 +303,30 @@ def release_reminder(match_uuid: str) -> None:
             "UPDATE match SET reminder_sent_ts = NULL WHERE match_uuid = %s",
             [match_uuid],
         )
+
+
+def get_or_create_miniapp_token(chat_id: int) -> str | None:
+    """The link token of the active match of a chat, created on first use and then stable for
+    that match; None when the chat has no active match. Two concurrent first calls agree on one
+    token (the COALESCE keeps the one already stored)."""
+    with connection() as conn:
+        row = conn.execute(
+            "UPDATE match SET miniapp_token = COALESCE(miniapp_token, %s) "
+            "WHERE stopped_ts IS NULL AND chat_uuid = "
+            "(SELECT chat_uuid FROM chat WHERE telegram_chat_id = %s) "
+            "RETURNING miniapp_token",
+            [secrets.token_urlsafe(24), chat_id],
+        ).fetchone()
+    return None if row is None else str(row[0])
+
+
+def find_chat_by_miniapp_token(token: str) -> int | None:
+    """The Telegram chat id of the ACTIVE match that has this token; None for an unknown
+    token or a stopped match."""
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT c.telegram_chat_id FROM match m JOIN chat c USING (chat_uuid) "
+            "WHERE m.miniapp_token = %s AND m.stopped_ts IS NULL",
+            [token],
+        ).fetchone()
+    return None if row is None else int(row[0])

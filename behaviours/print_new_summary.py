@@ -1,35 +1,32 @@
 import logging
 
-from telegram import Update
+from telegram import Bot
 from telegram.error import BadRequest
-from telegram.ext import ContextTypes
 
+from behaviours.miniapp_link import miniapp_markup
 from behaviours.summary_sending import is_parse_error
 
 logger = logging.getLogger(__name__)
 
 
-async def print_new_summary(
-    current_situation, update: Update, context: ContextTypes.DEFAULT_TYPE
-):
+async def print_new_summary(current_situation, bot: Bot, chat_id: int):
+    markup = miniapp_markup(bot, chat_id)
     try:
-        msg = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        msg = await bot.send_message(
+            chat_id=chat_id,
             parse_mode="markdown",
             text=current_situation,
+            reply_markup=markup,
         )
     except BadRequest as error:
         if not is_parse_error(error):
             raise
         # the description is free text: if its formatting is invalid, show it as it was typed
-        msg = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=current_situation,
+        msg = await bot.send_message(
+            chat_id=chat_id, text=current_situation, reply_markup=markup
         )
     try:
-        await context.bot.pin_chat_message(
-            chat_id=update.effective_chat.id, message_id=msg.message_id
-        )
+        await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id)
     except Exception:
         logger.warning("No admin rights to pin the message")
     return msg
