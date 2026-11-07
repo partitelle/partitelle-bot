@@ -18,6 +18,7 @@ TEST_ENV_DEFAULTS = {
     "PB_DB_USER": "partitelle",
     "PB_DB_PASSWORD": "partitelle",
     "PB_DB_NAME": "partitelle_test",
+    "PB_DB_SSLMODE": "disable",  # the local/CI Postgres has no TLS (the application default is `require`)
     "PB_DB_SCHEMA": "staging",  # mirrors prod: the schema is built by the real migrations
 }
 

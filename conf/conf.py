@@ -8,6 +8,9 @@ database = os.getenv("PB_DB_NAME")
 user = os.getenv("PB_DB_USER")
 password = os.getenv("PB_DB_PASSWORD")
 port = os.getenv("PB_DB_PORT")
+# TLS mode of every database connection (libpq `sslmode`). Defaults to `require`; a local Postgres without TLS
+# needs `PB_DB_SSLMODE=disable` (see default.env).
+db_sslmode = os.getenv("PB_DB_SSLMODE") or "require"
 # Postgres schema holding the bot tables (`staging` or `prod`). There is no default: the tables exist only in
 # that schema, so a missing value must stop the bot at startup instead of failing on the first message.
 db_schema = os.getenv("PB_DB_SCHEMA")

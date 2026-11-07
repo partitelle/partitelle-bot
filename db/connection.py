@@ -9,6 +9,7 @@ from psycopg import Connection, OperationalError
 from psycopg_pool import ConnectionPool, PoolTimeout
 
 from conf.conf import host, database, user, password, port, db_schema
+from conf.conf import db_sslmode
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def _create_pool() -> ConnectionPool:
             "user": user,
             "password": password,
             "port": port,
+            "sslmode": db_sslmode,
             "options": f"-c search_path={schema}",
             "connect_timeout": CONNECT_TIMEOUT,
             # every statement is committed on its own, as it always was

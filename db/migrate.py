@@ -12,6 +12,7 @@ from psycopg import sql
 from yoyo import get_backend, read_migrations
 
 from conf.conf import host, database, user, password, port, db_schema
+from conf.conf import db_sslmode
 from conf.conf import migrate_user, migrate_password
 from db.connection import validate_schema
 
@@ -39,7 +40,7 @@ def build_uri(schema):
     # on every connection, so also yoyo's own tables (_yoyo_migration, ...) live in the schema.
     return (
         f"postgresql+psycopg://{quote(db_user or '', safe='')}:{quote(db_password or '', safe='')}"
-        f"@{host}:{port or 5432}/{database}?schema={schema}"
+        f"@{host}:{port or 5432}/{database}?schema={schema}&sslmode={quote(db_sslmode, safe='')}"
     )
 
 
@@ -51,6 +52,7 @@ def create_schema(schema):
         user=db_user,
         password=db_password,
         port=port,
+        sslmode=db_sslmode,
         autocommit=True,
     ) as conn:
         conn.execute(

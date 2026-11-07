@@ -28,6 +28,7 @@ Set in the Render environment groups `PB_ENV_VARS` (service `partitelle-bot`, pr
 | `PB_DB_PASSWORD` | role password from the Neon console |
 | `PB_DB_PORT` | `5432` |
 | `PB_DB_SCHEMA` | `prod` / `staging` |
+| `PB_DB_SSLMODE` | optional, default `require`: Neon supports TLS, so leave it unset on the host |
 | `PB_DB_MIGRATE_USER` | optional: role that runs the migrations (see "Least-privilege roles") |
 | `PB_DB_MIGRATE_PASSWORD` | optional: password of that role; set both or neither |
 

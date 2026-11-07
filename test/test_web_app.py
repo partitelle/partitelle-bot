@@ -200,7 +200,7 @@ def test_webhook_rejects_a_json_body_that_is_not_an_update(application, body):
     assert application.update_queue.qsize() == 0
 
 
-JOBS_SECRET = "jobs-s3cret_value"
+JOBS_SECRET = "jobs-s3cret_value-0123456789abcdef"
 JOBS_PATH = "/jobs/payment-reminders"
 NOW = datetime(2026, 11, 1, 12, 0, tzinfo=timezone.utc)
 COUNTS = {"sent": 2, "skipped": 3, "failed": 1}
@@ -245,6 +245,26 @@ def test_jobs_endpoint_is_disabled_without_a_secret(application, jobs_secret):
     )
     assert response.status_code == 404
     assert sender.calls == []
+
+
+@pytest.mark.parametrize("short", ["x", "s" * 31, "jobs-s3cret_value"])
+def test_jobs_endpoint_is_disabled_with_a_secret_shorter_than_32(application, short):
+    assert len(short) < 32
+    sender = FakeSender()
+    response = jobs_client(application, sender, short).post(
+        JOBS_PATH, headers=bearer(short)
+    )
+    assert response.status_code == 404
+    assert sender.calls == []
+
+
+@pytest.mark.parametrize("long_secret", ["s" * 32, "k" * 64])
+def test_jobs_endpoint_works_with_a_secret_of_32_or_more(application, long_secret):
+    sender = FakeSender()
+    client_ = jobs_client(application, sender, long_secret)
+    assert client_.post(JOBS_PATH, headers=bearer(long_secret)).status_code == 200
+    assert client_.post(JOBS_PATH, headers=bearer("wrong")).status_code == 401
+    assert len(sender.calls) == 1
 
 
 @pytest.mark.parametrize(
