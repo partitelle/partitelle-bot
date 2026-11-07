@@ -16,11 +16,22 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 import pytest
+import time_machine
 import yoyo
 from psycopg import errors, sql
 from yoyo import get_backend, read_migrations
 
 from db import migrate as db_migrate
+
+
+@pytest.fixture(scope="module", autouse=True)
+def frozen_clock():
+    """The module's fixtures and tests share one Rome date, even when the run crosses midnight.
+
+    The clock stops at noon of the day the module was imported, so it stays close to the database's own now().
+    """
+    with time_machine.travel(datetime.combine(RUN_DAY, time(12, 0), ROME), tick=False):
+        yield
 
 
 @pytest.fixture(scope="module")
@@ -300,8 +311,11 @@ def load_copy_migration():
     return module
 
 
+RUN_DAY = datetime.now(ROME).date()
+
+
 def rome_today():
-    return datetime.now(ROME).date()
+    return RUN_DAY
 
 
 def day_text(days_from_today):
