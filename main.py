@@ -7,7 +7,15 @@ import os
 import uvicorn
 from telegram.ext import Application, ContextTypes
 
-from conf.conf import token, hosting_url, env, webhook_secret, jobs_secret
+from conf.conf import (
+    token,
+    hosting_url,
+    env,
+    webhook_secret,
+    jobs_secret,
+    miniapp_short_name,
+    miniapp_max_age,
+)
 from handlers import register_handlers
 from web.app import (
     MIN_JOBS_SECRET_LENGTH,
@@ -15,6 +23,7 @@ from web.app import (
     create_app,
     jobs_secret_is_usable,
 )
+from web.miniapp import miniapp_routes
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +83,24 @@ def configure_logging():
     # httpcore sits under httpx: keep it at WARNING too.
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # python-telegram-bot logs the parameters of every Bot API call at DEBUG (user ids, names, texts).
+    logging.getLogger("telegram").setLevel(logging.INFO)
 
 
 async def run_web(application, secret):
     """Serve the web app (webhook + health) and run the application next to it."""
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(application, secret, jobs_secret=jobs_secret),
+            create_app(
+                application,
+                secret,
+                jobs_secret=jobs_secret,
+                extra_routes=(
+                    miniapp_routes(application, token, max_age=miniapp_max_age)
+                    if miniapp_short_name
+                    else ()
+                ),
+            ),
             host="0.0.0.0",
             port=int(os.environ.get("PORT", 5000)),
         )
