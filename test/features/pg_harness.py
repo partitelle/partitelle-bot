@@ -136,16 +136,34 @@ class Database:
         return row
 
     def set_players(self, chat_id, players):
-        """`players` is a list of (name, is_maybe), in order."""
+        """`players` is a list of (name, is_maybe) or (name, is_maybe, telegram user id),
+        in order."""
         match_uuid = self._active_match_uuid(chat_id)
         with self.conn.cursor() as cur:
             cur.execute("DELETE FROM participant WHERE match_uuid = %s", [match_uuid])
-            for position, (name, is_maybe) in enumerate(players, start=1):
+            for position, (name, is_maybe, *user_id) in enumerate(players, start=1):
                 cur.execute(
-                    "INSERT INTO participant (match_uuid, display_name, status, position) "
-                    "VALUES (%s, %s, %s::participant_status, %s)",
-                    [match_uuid, name, "maybe" if is_maybe else "confirmed", position],
+                    "INSERT INTO participant (match_uuid, display_name, status, position, "
+                    "telegram_user_id) VALUES (%s, %s, %s::participant_status, %s, %s)",
+                    [
+                        match_uuid,
+                        name,
+                        "maybe" if is_maybe else "confirmed",
+                        position,
+                        user_id[0] if user_id else None,
+                    ],
                 )
+
+    def fetch_user_ids(self, chat_id):
+        """Display name -> stored Telegram user id (None when there is none)."""
+        match_uuid = self._active_match_uuid(chat_id)
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT display_name, telegram_user_id FROM participant "
+                "WHERE match_uuid = %s",
+                [match_uuid],
+            )
+            return dict(cur.fetchall())
 
     def set_teams(self, chat_id, black, white):
         """Teams are a property of the confirmed participants: they must be seeded first."""

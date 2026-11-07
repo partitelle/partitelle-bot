@@ -144,3 +144,39 @@ def test_a_released_claim_can_be_taken_again_and_only_once(world):
     release_reminder(match_uuid)
     assert world.db.fetch_reminder(world.current_chat.id)[0] is False
     assert claim_reminder(match_uuid) is True
+
+
+def test_chat_togli_escapes_the_name(world):
+    world.add_chat("Calcetto")
+    world.add_user("@giulia", "Giulia", "giulia")
+    world.send("@giulia", "/start")
+    world.db.set_players(world.current_chat.id, [("luca_rossi", False)])
+    world.forget_calls()
+
+    world.send("@giulia", "togli luca_rossi")
+
+    reply = world.next_call()
+    assert reply.method == "send_message"
+    assert reply.params["parse_mode"] == "markdown"
+    assert reply.params["text"] == escape_markdown("Che vergogna, luca_rossi")
+    assert reply.params["text"] == "Che vergogna, luca\\_rossi"
+
+
+def test_chat_scambia_escapes_the_names(world):
+    world.add_chat("Calcetto")
+    world.add_user("@giulia", "Giulia", "giulia")
+    world.send("@giulia", "/start")
+    chat_id = world.current_chat.id
+    world.db.set_players(
+        chat_id, [("a_b", False), ("x", False), ("c", False), ("y", False)]
+    )
+    world.db.set_teams(chat_id, ["a_b", "x"], ["c", "y"])
+    world.forget_calls()
+
+    world.send("@giulia", "scambia a_b con c")
+
+    reply = world.next_call()
+    assert reply.method == "send_message"
+    assert reply.params["parse_mode"] == "markdown"
+    assert reply.params["text"] == escape_markdown("Perfetto, ho scambiato a_b con c")
+    assert reply.params["text"] == "Perfetto, ho scambiato a\\_b con c"
