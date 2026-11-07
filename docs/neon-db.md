@@ -58,7 +58,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE <owner_role> IN SCHEMA <schema>
   GRANT USAGE, SELECT ON SEQUENCES TO <app_role>;
 ```
 
-The app role cannot create, alter or drop tables.
+The app role cannot create, alter or drop tables. The grants cover every object the migrations create today (`chat`, `setting`, `match`, `participant`, the legacy `all_players`, the view `active_match`, and the `miniapp_token` column added to `match` by `0004`): none uses a sequence (ids are `gen_random_uuid()`), and types and functions are usable by default.
 
 Rollout order on the host, one environment at a time, staging first, then prod:
 
@@ -114,7 +114,7 @@ docker exec -i pg-restore pg_restore -U postgres --dbname=restored --no-owner --
 # an encrypted dump: age -d <schema>.dump.age | docker exec -i pg-restore pg_restore ... (same options)
 ```
 
-Then compare each table with the source (replace `<table>` with `chat`, `match`, `participant`, ...):
+Then compare each table with the source (replace `<table>` with each of `chat`, `setting`, `match`, `participant` and the legacy `all_players`; add any table that later migrations create, list them with `\dt <schema>.*`):
 
 ```bash
 docker run --rm postgres:17 psql "<direct connection string>" -Atc "SELECT count(*) FROM <schema>.<table>"
