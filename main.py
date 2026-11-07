@@ -60,24 +60,28 @@ def configure_logging():
     logging.getLogger("telegram").setLevel(logging.INFO)
 
 
+def build_server_config(application, secret):
+    """The uvicorn config. The access log is off: the logs keep application warnings and errors only."""
+    return uvicorn.Config(
+        create_app(
+            application,
+            secret,
+            jobs_secret=jobs_secret,
+            extra_routes=(
+                miniapp_routes(application, token, max_age=miniapp_max_age)
+                if miniapp_short_name
+                else ()
+            ),
+        ),
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        access_log=False,
+    )
+
+
 async def run_web(application, secret):
     """Serve the web app (webhook + health) and run the application next to it."""
-    server = uvicorn.Server(
-        uvicorn.Config(
-            create_app(
-                application,
-                secret,
-                jobs_secret=jobs_secret,
-                extra_routes=(
-                    miniapp_routes(application, token, max_age=miniapp_max_age)
-                    if miniapp_short_name
-                    else ()
-                ),
-            ),
-            host="0.0.0.0",
-            port=int(os.environ.get("PORT", 5000)),
-        )
-    )
+    server = uvicorn.Server(build_server_config(application, secret))
     async with application:  # initialize / shutdown
         await application.bot.set_webhook(
             url=f"{hosting_url}/{WEBHOOK_PATH}", secret_token=secret
