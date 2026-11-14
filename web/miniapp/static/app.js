@@ -44,7 +44,11 @@
       : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
     var c = dark ? '#111111' : '#FFFFFF';
-    call('setHeaderColor', c);
+    // On iOS the header buttons are glass that follows Telegram's theme only when the header is a theme key: with a hex
+    // colour the glass is always light and a dark header gets a white glyph on it, hard to see on recent clients.
+    // So on iOS in dark mode the header takes the theme's own background; the page keeps the brand colours.
+    var ios = !!(tg && tg.platform === 'ios');
+    call('setHeaderColor', dark && ios ? 'bg_color' : c);
     call('setBackgroundColor', c);
     call('setBottomBarColor', c);
   }

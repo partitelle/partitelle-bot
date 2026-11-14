@@ -540,6 +540,18 @@ def test_the_page_reserves_room_for_the_toast_above_the_last_rows(env):
     assert "doc.scrollHeight - reserved - window.innerHeight" in script
 
 
+def test_on_ios_in_dark_mode_the_header_follows_the_telegram_theme(env):
+    script = env.client.get("/app/static/app.js").text
+    # hex headers make iOS draw light glass buttons, so dark iOS uses the theme key
+    assert "var ios = !!(tg && tg.platform === 'ios');" in script
+    assert "call('setHeaderColor', dark && ios ? 'bg_color' : c);" in script
+    assert "call('setHeaderColor', c);" not in script
+    assert "call('setBackgroundColor', c);" in script
+    assert "call('setBottomBarColor', c);" in script
+    assert "var c = dark ? '#111111' : '#FFFFFF';" in script
+    assert "call('onEvent', 'themeChanged', applyTheme);" in script
+
+
 def test_the_page_is_the_real_one_and_has_no_inline_code_or_style(env):
     text = env.client.get("/app").text
     assert "/app/static/app.js" in text
